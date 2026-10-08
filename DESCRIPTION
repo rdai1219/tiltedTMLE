@@ -1,0 +1,39 @@
+Package: tiltedTMLE
+Title: Targeted Maximum Likelihood Estimation for Tilted Average Treatment Effects
+Version: 0.0.1
+Authors@R: c(
+    person("Yixin", "Fang", email = "yixin.fang@abbvie.com", role = "aut"),
+    person("Weili", "He", email = "weili.he@abbvie.com", role = "aut"),
+    person("Ran", "Dai", email = "ran.dai@abbvie.com", role = c("aut", "cre")))
+Description: Implements targeted maximum likelihood estimators (TMLE) for a
+    broad class of tilted average treatment effect (ATE) estimands, covering
+    two related but distinct tilting-function settings. Fang, He, and Dai,
+    "Targeted Learning for Externally Controlled Trials and Beyond"
+    (AbbVie, 2026), treats the tilting function h(x) as a known, fixed
+    weight prespecified by the user (e.g. h(x) = 1 for the ATE, or
+    h(x) = the estimated propensity score itself for the ATT), estimated
+    with a single targeting step. Fang, "Targeted Learning for Tilted
+    Average Treatment Effects" (AbbVie, 2026), instead treats h(x) as a
+    known function of an unknown nuisance function that must itself be
+    estimated and iteratively targeted alongside the outcome regression:
+    h(x) = eta(g(x)) for internally tilted estimands (ATE/ATT/ATC/ATO,
+    tilting by a function of the treatment propensity score g(x) within a
+    single study population), and h(x) = eta(s(x)) for externally tilted
+    estimands (ATE-I/ATE-E/ATE-O, tilting by a function of the selection
+    propensity score s(x) between an internal trial population and an
+    external covariate-only population). All three settings share the same
+    efficient-influence-function-based standard error construction.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+Depends: R (>= 3.5)
+Imports:
+    stats
+Suggests:
+    SuperLearner,
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.1.0
+VignetteBuilder: knitr
