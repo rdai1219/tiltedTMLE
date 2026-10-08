@@ -32,5 +32,13 @@
 #' [tilt_spec_external()]). `s(x)` is iteratively targeted alongside the
 #' outcome regression.
 #'
+#' @references
+#' Fang, He, and Dai, "Targeted Learning for Externally Controlled Trials
+#' and Beyond" (AbbVie, 2026).
+#'
+#' Fang, "Targeted Learning for Tilted Average Treatment Effects" (AbbVie, 2026).
+#'
+#' @seealso [estimate_tau_h_fixed()], [estimate_tau_h_internal_tilted()],
+#'   [estimate_tau_h_external_tilted()], the three top-level entry points.
 #' @keywords internal
 "_PACKAGE"

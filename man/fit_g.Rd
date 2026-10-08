@@ -15,17 +15,24 @@ fit_g(
 )
 }
 \arguments{
-\item{A}{Binary treatment (or selection) indicator vector.}
+\item{A}{Binary (\code{0}/\code{1}) treatment (or selection) indicator vector.}
 
 \item{W}{Covariate data frame (or matrix, coerced via \code{\link[=as.data.frame]{as.data.frame()}}).}
 
-\item{method}{\code{"glm"} (default) or \code{"SL"} for \code{\link[SuperLearner:SuperLearner]{SuperLearner::SuperLearner()}}.}
+\item{method}{Nuisance-fitting method. \code{"glm"} (default) fits a single
+logistic regression via \code{\link[stats:glm]{stats::glm()}}. \code{"SL"} fits an ensemble via
+\code{\link[SuperLearner:SuperLearner]{SuperLearner::SuperLearner()}}; requires the (\code{Suggests}-only)
+\code{SuperLearner} package to be installed, and uses \code{SL.library}
+instead of \code{gform}.}
 
-\item{gform}{Optional model formula for \code{method = "glm"}. Defaults to
-\code{A ~ W1 + W2 + ...} over all columns of \code{W}.}
+\item{gform}{Model formula, used only when \code{method = "glm"} (ignored
+for \code{method = "SL"}, which uses \code{SL.library} instead). Defaults to
+\code{A ~ W1 + W2 + ...} over all columns of \code{W}, i.e. main effects only,
+no interactions.}
 
-\item{SL.library}{Character vector of SuperLearner wrapper names, used
-when \code{method = "SL"}.}
+\item{SL.library}{Character vector of SuperLearner wrapper names (e.g.
+\code{c("SL.glm", "SL.mean")}), used only when \code{method = "SL"} (ignored
+for \code{method = "glm"}, which uses \code{gform} instead).}
 
 \item{gbounds}{Length-2 vector of truncation bounds applied to the
 fitted probabilities. \code{c(0.025, 0.975)} (default) truncates;
@@ -36,9 +43,11 @@ realized by callers.}
 \item{...}{Passed through to \code{glm()} or \code{SuperLearner::SuperLearner()}.}
 }
 \value{
-A list with components \code{g1W} (truncated fitted \code{P(A = 1 | W)}),
-\code{g0W} (\code{1 - g1W}), \code{fit} (the underlying fitted model object), and
-\code{method}.
+A list with components:
+\item{g1W}{Fitted \code{P(A = 1 | W)}, truncated to \code{gbounds}.}
+\item{g0W}{\code{1 - g1W}.}
+\item{fit}{The underlying fitted model object (\code{glm} or \code{SuperLearner}).}
+\item{method}{\code{"glm"} or \code{"SL"}, matching the \code{method} argument.}
 }
 \description{
 Fits a binary treatment (or, when called with \code{D} in place of \code{A}, a
@@ -53,4 +62,8 @@ W <- data.frame(X1 = rnorm(n), X2 = rnorm(n))
 A <- rbinom(n, 1, stats::plogis(0.3 * W$X1))
 gfit <- fit_g(A, W)
 summary(gfit$g1W)
+}
+\seealso{
+\code{\link[=fit_Q]{fit_Q()}} for the companion outcome-regression fit,
+\code{\link[=predict_ghat]{predict_ghat()}} for predicting from \code{fit} on new covariates.
 }

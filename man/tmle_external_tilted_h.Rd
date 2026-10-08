@@ -27,7 +27,8 @@ tmle_external_tilted_h(
 \arguments{
 \item{D}{Length-\code{N} pooled selection indicator.}
 
-\item{A_int, Y_int}{Length-\code{n} internal-only treatment and outcome vectors.}
+\item{A_int, Y_int}{Length-\code{n} internal-only treatment and binary
+(\code{0}/\code{1}) outcome vectors; see \code{\link[=fit_Q]{fit_Q()}} Details.}
 
 \item{idx1}{Integer vector, \code{which(D == 1)}.}
 
@@ -56,20 +57,34 @@ fluctuation update; see Details.}
 \item{tol}{Convergence tolerance.}
 }
 \value{
-A list with components \code{estimate}, \code{se}, \code{CI}, \code{iter},
-\code{EIF}, \code{Q1W}, \code{Q0W}, \code{QAW_int}, \code{s1W}.
+A list with components:
+\item{estimate}{TMLE point estimate of the externally tilted ATE.}
+\item{se}{EIF-based standard error, at convergence.}
+\item{CI}{Wald 95\% confidence interval, \verb{estimate +/- 1.96 * se}.}
+\item{iter}{Number of targeting iterations used (\verb{<= max_iter}).}
+\item{EIF}{Efficient influence function at convergence, evaluated at
+each pooled observation.}
+\item{Q1W,Q0W}{Targeted pooled outcome regression at \code{A = 1} and \code{A = 0}.}
+\item{QAW_int}{Targeted internal-only outcome regression at the observed treatment.}
+\item{s1W}{Targeted pooled selection propensity.}
 }
 \description{
-Implements Sec 3.3 Steps 1-4 of the reference paper: initial
-plug-in, then iterative targeting of \code{Q} (Step 2(a), fit on internal
-rows, applied to all \code{N} rows) and \code{s} (Step 2(b), fit on pooled
-rows) in turn, recomputing \code{tau} (Step 2(c)) and the EIF after each
-full iteration, until the empirical mean of the EIF is below \code{tol}
-or \code{max_iter} is reached. \code{eta_dot = 0} (ATE-I) collapses Step 2(b)
-to a no-op via \code{\link[=fit_eps_h]{fit_eps_h()}}'s existing \code{eps <- 0} guard for a
-degenerate (all-zero-covariate) fit.
+Implements Sec 3.3 of the reference paper: an iterative TMLE that
+alternately targets the outcome regression \code{Q} (fit on internal rows,
+applied to all \code{N} pooled rows) and the selection propensity \code{s} (fit
+on all \code{N} pooled rows), since the tilting function \code{h(x) = eta(s(x))}
+depends on \code{s} itself. The treatment propensity \code{g} is fit once,
+upstream, and is never re-targeted inside this loop.
 }
 \details{
+Each iteration: Step 2(a) targets \code{Q} via a logistic fluctuation fit on
+internal rows only but applied to all \code{N} rows; Step 2(b) targets \code{s}
+via a logistic fluctuation fit on all \code{N} rows; Step 2(c) recomputes
+\code{tau}. The loop stops once the empirical mean of the EIF is below
+\code{tol} or \code{max_iter} is reached. \code{eta_dot = 0} (ATE-I) collapses Step
+2(b) to a no-op via \code{\link[=fit_eps_h]{fit_eps_h()}}'s existing \code{eps <- 0} guard for a
+degenerate (all-zero-covariate) fit.
+
 \code{g1W_int}/\code{g0W_int} (length \code{n}, internal rows only) are used for the
 EIF's term 1 and are held fixed throughout -- \code{g} is fit once,
 upstream, and never re-targeted. \code{g1W_all}/\code{g0W_all} (length \code{N}, \code{g}
@@ -109,4 +124,9 @@ out <- tmle_external_tilted_h(D, A_int, Y_int, idx1, Q1W, Q0W, Qfit_int$QAW,
                                sfit$g1W, spec$eta, spec$eta_dot)
 out$estimate
 out$iter
+}
+\seealso{
+\code{\link[=eif_external_tilted_h]{eif_external_tilted_h()}} for the EIF this iterates to
+convergence, \code{\link[=estimate_tau_h_external_tilted]{estimate_tau_h_external_tilted()}} for the raw-data
+entry point.
 }

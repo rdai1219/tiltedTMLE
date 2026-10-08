@@ -7,9 +7,9 @@
 aipw_h(Y, A, h, Q1W, Q0W, g1W, g0W = 1 - g1W)
 }
 \arguments{
-\item{Y}{Outcome vector.}
+\item{Y}{Binary (\code{0}/\code{1}) outcome vector; see \code{\link[=fit_Q]{fit_Q()}} Details.}
 
-\item{A}{Binary treatment vector.}
+\item{A}{Binary (\code{0}/\code{1}) treatment vector.}
 
 \item{h}{Numeric tilting-function weight vector.}
 
@@ -19,7 +19,9 @@ aipw_h(Y, A, h, Q1W, Q0W, g1W, g0W = 1 - g1W)
 \code{1 - g1W} at \code{A = 0}).}
 }
 \value{
-A list with components \code{estimate} and \code{se}.
+A list with components:
+\item{estimate}{Point estimate of \eqn{\tau_h}.}
+\item{se}{EIF-based standard error.}
 }
 \description{
 Doubly-robust benchmark estimator, with an EIF-based standard error of
@@ -34,4 +36,8 @@ Y <- rbinom(n, 1, stats::plogis(-0.3 + 0.5 * A + 0.3 * W$X1))
 Qfit <- fit_Q(Y, A, W)
 gfit <- fit_g(A, W)
 aipw_h(Y, A, h = rep(1, n), Qfit$Q1W, Qfit$Q0W, gfit$g1W)
+}
+\seealso{
+\code{\link[=mle_h]{mle_h()}}, \code{\link[=ipw_h]{ipw_h()}} for the other benchmark estimators,
+\code{\link[=tmle_h]{tmle_h()}} for the targeted (TMLE) estimator.
 }

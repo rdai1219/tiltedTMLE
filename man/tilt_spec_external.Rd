@@ -11,8 +11,9 @@ tilt_spec_external(estimand = c("ATE-I", "ATE-E", "ATE-O"))
 (external population), \code{"ATE-O"} (overlap population).}
 }
 \value{
-A list with components \code{eta} and \code{eta_dot}, each a function
-of \code{s}.
+A list with components:
+\item{eta}{Function of \code{s}, the tilting weight \code{eta(s)}.}
+\item{eta_dot}{Function of \code{s}, the derivative \verb{d/ds eta(s)}.}
 }
 \description{
 Returns \code{eta(s)} and its derivative \code{eta_dot(s)} for the three
@@ -25,4 +26,8 @@ spec <- tilt_spec_external("ATE-O")
 s <- c(0.2, 0.5, 0.8)
 spec$eta(s)
 spec$eta_dot(s)
+}
+\seealso{
+\code{\link[=estimate_tau_h_external_tilted]{estimate_tau_h_external_tilted()}}, the entry point this is
+normally passed to.
 }

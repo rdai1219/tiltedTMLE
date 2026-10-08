@@ -4,15 +4,17 @@
 #' check and for the final standard error at convergence inside
 #' [tmle_tilted_h()].
 #'
-#' @param Y Outcome vector.
-#' @param A Binary treatment vector.
+#' @param Y Binary (`0`/`1`) outcome vector; see [fit_Q()] Details.
+#' @param A Binary (`0`/`1`) treatment vector.
 #' @param eta_g `eta(g1W)`.
 #' @param eta_dot_g `eta_dot(g1W)`.
 #' @param Q1W,Q0W Fitted outcome regression at `A = 1` and `A = 0`.
 #' @param g1W,g0W Fitted treatment propensity at `A = 1` and `A = 0`.
 #' @param tau Current estimate of the tilted ATE.
 #'
-#' @return Numeric vector, the EIF evaluated at each observation.
+#' @return Numeric vector, the efficient influence function evaluated at
+#'   each observation.
+#' @seealso [tmle_tilted_h()], which calls this at every iteration.
 #' @examples
 #' set.seed(1)
 #' n <- 200
@@ -37,17 +39,23 @@ eif_tilted_h <- function(Y, A, eta_g, eta_dot_g, Q1W, Q0W, g1W, g0W, tau) {
 
 #' Iterative TMLE for an internally tilted ATE
 #'
-#' Implements Sec 2.3 Steps 1-4 of the reference paper: initial plug-in,
-#' then iterative targeting of `Q` (Step 2(a)) and `g` (Step 2(b)) in
-#' turn, recomputing `tau` (Step 2(c)) and the EIF after each full
-#' iteration, until the empirical mean of the EIF is below `tol` or
-#' `max_iter` is reached (Step 3). `eta_dot = 0` (ATE) collapses Step
+#' Implements Sec 2.3 of the reference paper: an iterative TMLE that
+#' alternately targets the outcome regression `Q` and the treatment
+#' propensity `g`, since the tilting function `h(x) = eta(g(x))` depends
+#' on `g` itself.
+#'
+#' Each iteration: Step 2(a) targets `Q` via a logistic fluctuation with
+#' clever covariate `eta(g)/g1W` (`A = 1`) / `-eta(g)/g0W` (`A = 0`); Step
+#' 2(b) targets `g` via a logistic fluctuation with clever covariate
+#' `eta_dot(g) * (Q1W - Q0W - tau)`; Step 2(c) recomputes `tau`. The loop
+#' (Step 3) stops once the empirical mean of the EIF is below `tol` or
+#' `max_iter` is reached. `eta_dot = 0` (the plain ATE) collapses Step
 #' 2(b) to a no-op via [fit_eps_h()]'s existing `eps <- 0` guard for a
-#' degenerate (all-zero-covariate) fit, so ATE converges in a single
+#' degenerate (all-zero-covariate) fit, so the ATE converges in a single
 #' iteration without a special-cased branch.
 #'
-#' @param Y Outcome vector.
-#' @param A Binary treatment vector.
+#' @param Y Binary (`0`/`1`) outcome vector; see [fit_Q()] Details.
+#' @param A Binary (`0`/`1`) treatment vector.
 #' @param Q1W,Q0W,QAW Fitted outcome regression at `A = 1`, `A = 0`, and
 #'   the observed treatment.
 #' @param g1W,g0W Fitted treatment propensity at `A = 1` and `A = 0`.
@@ -56,8 +64,17 @@ eif_tilted_h <- function(Y, A, eta_g, eta_dot_g, Q1W, Q0W, g1W, g0W, tau) {
 #' @param max_iter Maximum number of targeting iterations.
 #' @param tol Convergence tolerance on the empirical mean of the EIF.
 #'
-#' @return A list with components `estimate`, `se`, `CI`, `iter`,
-#'   `EIF`, `Q1W`, `Q0W`, `QAW`, `g1W`, `g0W`.
+#' @return A list with components:
+#' \item{estimate}{TMLE point estimate of the internally tilted ATE.}
+#' \item{se}{EIF-based standard error, at convergence.}
+#' \item{CI}{Wald 95% confidence interval, `estimate +/- 1.96 * se`.}
+#' \item{iter}{Number of targeting iterations used (`<= max_iter`).}
+#' \item{EIF}{Efficient influence function at convergence, evaluated at each observation.}
+#' \item{Q1W,Q0W,QAW}{Targeted outcome regression at `A = 1`, `A = 0`, and the observed treatment.}
+#' \item{g1W,g0W}{Targeted treatment propensity at `A = 1` and `A = 0`.}
+#'
+#' @seealso [eif_tilted_h()] for the EIF this iterates to convergence,
+#'   [estimate_tau_h_internal_tilted()] for the raw-data entry point.
 #' @examples
 #' set.seed(1)
 #' n <- 200
@@ -124,16 +141,27 @@ tmle_tilted_h <- function(Y, A, Q1W, Q0W, QAW, g1W, g0W, eta, eta_dot,
 #' way TMLE's `g` is. TMLE itself iteratively targets both `Q` and `g`
 #' via [tmle_tilted_h()] (Sec 2.3).
 #'
-#' @param Y Outcome vector.
-#' @param A Binary treatment vector.
+#' @param Y Binary (`0`/`1`) outcome vector; see [fit_Q()] Details.
+#' @param A Binary (`0`/`1`) treatment vector.
 #' @param Qfit A fitted-Q object, as returned by [fit_Q()].
 #' @param gfit A fitted-g object, as returned by [fit_g()].
 #' @param eta,eta_dot Tilting function and its derivative; see [tilt_spec()].
 #' @param max_iter,tol Passed to [tmle_tilted_h()].
 #'
-#' @return A list with components `h`, `MLE`, `IPW`, `AIPW`, `AIPW_se`,
-#'   `TMLE`, `TMLE_se`, `TMLE_CI`, `TMLE_iter`, plus the fitted objects
-#'   `Qfit`, `gfit`, `tmle_fit`.
+#' @return A list with components:
+#' \item{h}{The resolved tilting weight vector, `eta(gfit$g1W)`.}
+#' \item{MLE}{Plug-in (g-computation) benchmark estimate; see [mle_h()].}
+#' \item{IPW}{Inverse-probability-weighted benchmark estimate; see [ipw_h()].}
+#' \item{AIPW,AIPW_se}{Augmented IPW benchmark estimate and its EIF-based
+#'   standard error; see [aipw_h()].}
+#' \item{TMLE,TMLE_se,TMLE_CI}{Iterative TMLE point estimate, EIF-based
+#'   standard error, and Wald 95% confidence interval; see [tmle_tilted_h()].}
+#' \item{TMLE_iter}{Number of targeting iterations the TMLE used.}
+#' \item{Qfit,gfit}{The fitted-Q and fitted-g objects passed in.}
+#' \item{tmle_fit}{The full [tmle_tilted_h()] result.}
+#'
+#' @seealso [estimate_tau_h_internal_tilted()], the raw-data entry point
+#'   that calls this after fitting `Q`/`g`.
 #' @examples
 #' set.seed(1)
 #' n <- 200
@@ -174,12 +202,14 @@ estimate_tau_h_internal_tilted_given_fits <- function(Y, A, Qfit, gfit, eta, eta
 #' and `g`, then returns MLE/IPW/AIPW benchmarks plus the iterative
 #' TMLE and its EIF-based inference.
 #'
-#' @param Y Outcome vector.
-#' @param A Binary treatment vector.
+#' @param Y Binary (`0`/`1`) outcome vector; see [fit_Q()] Details.
+#' @param A Binary (`0`/`1`) treatment vector.
 #' @param W Covariate data frame.
 #' @param eta,eta_dot Tilting function and its derivative; see [tilt_spec()].
-#' @param Q_method,Qform,Q_SL.library Passed to [fit_Q()].
-#' @param g_method,gform,g_SL.library Passed to [fit_g()].
+#' @param Q_method,Qform,Q_SL.library Passed to [fit_Q()] as `method`,
+#'   `Qform`, `SL.library` (`Q_method` is `"glm"` or `"SL"`).
+#' @param g_method,gform,g_SL.library Passed to [fit_g()] as `method`,
+#'   `gform`, `SL.library` (`g_method` is `"glm"` or `"SL"`).
 #' @param truncate If `TRUE` (default), `gbounds` is used as given
 #'   (default `c(0.025, 0.975)`). If `FALSE`, `gbounds` is forced to
 #'   `c(0, 1)`, i.e. no truncation.
@@ -188,6 +218,12 @@ estimate_tau_h_internal_tilted_given_fits <- function(Y, A, Qfit, gfit, eta, eta
 #' @param ... Passed through to [fit_Q()]/[fit_g()] (e.g. `cvControl` for SL).
 #'
 #' @return See [estimate_tau_h_internal_tilted_given_fits()].
+#'
+#' @references Fang, "Targeted Learning for Tilted Average Treatment
+#'   Effects" (AbbVie, 2026), Sec. 2.
+#' @seealso [tilt_spec()] for the four named internal estimands,
+#'   [estimate_tau_h_fixed()], [estimate_tau_h_external_tilted()] for
+#'   the other two tilting-function settings this package implements.
 #' @examples
 #' set.seed(1)
 #' n <- 200

@@ -15,9 +15,9 @@ estimate_tau_h_fixed_given_fits(
 )
 }
 \arguments{
-\item{Y}{Outcome vector.}
+\item{Y}{Binary (\code{0}/\code{1}) outcome vector; see \code{\link[=fit_Q]{fit_Q()}} Details.}
 
-\item{A}{Binary treatment vector.}
+\item{A}{Binary (\code{0}/\code{1}) treatment vector.}
 
 \item{h}{Tilting-function specification; see Details.}
 
@@ -31,10 +31,21 @@ estimate_tau_h_fixed_given_fits(
 (defaults to \code{A}).}
 }
 \value{
-A list with components \code{h}, \code{MLE}, \code{IPW}, \code{AIPW}, \code{AIPW_se},
-\code{TMLE}, \code{TMLE_se}, \code{TMLE_CI}, \code{Bootstrap_SE},
-\code{Bootstrap_CI_normal}, \code{Bootstrap_CI_percentile}, plus the fitted
-objects \code{Qfit}, \code{gfit}, \code{tmle_fit}, \code{boot_fit}.
+A list with components:
+\item{h}{The resolved numeric tilting-function weight vector.}
+\item{MLE}{Plug-in (g-computation) point estimate; see \code{\link[=mle_h]{mle_h()}}.}
+\item{IPW}{Inverse-probability-weighted point estimate; see \code{\link[=ipw_h]{ipw_h()}}.}
+\item{AIPW,AIPW_se}{Augmented IPW point estimate and its EIF-based
+standard error; see \code{\link[=aipw_h]{aipw_h()}}.}
+\item{TMLE,TMLE_se,TMLE_CI}{TMLE point estimate, EIF-based standard
+error, and Wald 95\% confidence interval; see \code{\link[=tmle_h]{tmle_h()}}.}
+\item{Bootstrap_SE}{Target-step bootstrap standard error; see \code{\link[=tmle_bootstrap_h]{tmle_bootstrap_h()}}.}
+\item{Bootstrap_CI_normal}{Wald 95\% confidence interval using the bootstrap SE.}
+\item{Bootstrap_CI_percentile}{Percentile-based 95\% confidence interval
+from the bootstrap distribution.}
+\item{Qfit,gfit}{The fitted-Q and fitted-g objects passed in.}
+\item{tmle_fit}{The full \code{\link[=tmle_h]{tmle_h()}} result.}
+\item{boot_fit}{The full \code{\link[=tmle_bootstrap_h]{tmle_bootstrap_h()}} result.}
 }
 \description{
 Core estimation step given ALREADY-FITTED \code{Q} and \code{g} (as returned by
@@ -66,4 +77,8 @@ gfit <- fit_g(A, W)
 out <- estimate_tau_h_fixed_given_fits(Y, A, h = rep(1, n), Qfit, gfit, n_boot = 50)
 out$TMLE
 out$TMLE_CI
+}
+\seealso{
+\code{\link[=estimate_tau_h_fixed]{estimate_tau_h_fixed()}}, the raw-data entry point that calls
+this after fitting \code{Q}/\code{g}.
 }

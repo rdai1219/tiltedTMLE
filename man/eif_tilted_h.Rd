@@ -7,9 +7,9 @@
 eif_tilted_h(Y, A, eta_g, eta_dot_g, Q1W, Q0W, g1W, g0W, tau)
 }
 \arguments{
-\item{Y}{Outcome vector.}
+\item{Y}{Binary (\code{0}/\code{1}) outcome vector; see \code{\link[=fit_Q]{fit_Q()}} Details.}
 
-\item{A}{Binary treatment vector.}
+\item{A}{Binary (\code{0}/\code{1}) treatment vector.}
 
 \item{eta_g}{\code{eta(g1W)}.}
 
@@ -22,7 +22,8 @@ eif_tilted_h(Y, A, eta_g, eta_dot_g, Q1W, Q0W, g1W, g0W, tau)
 \item{tau}{Current estimate of the tilted ATE.}
 }
 \value{
-Numeric vector, the EIF evaluated at each observation.
+Numeric vector, the efficient influence function evaluated at
+each observation.
 }
 \description{
 Evaluated at any \verb{(Q, g, tau)}; used both for the Step-3 convergence
@@ -43,4 +44,7 @@ tau <- sum(eta_g * (Qfit$Q1W - Qfit$Q0W)) / sum(eta_g)
 EIF <- eif_tilted_h(Y, A, eta_g, spec$eta_dot(gfit$g1W),
                      Qfit$Q1W, Qfit$Q0W, gfit$g1W, gfit$g0W, tau)
 mean(EIF)
+}
+\seealso{
+\code{\link[=tmle_tilted_h]{tmle_tilted_h()}}, which calls this at every iteration.
 }

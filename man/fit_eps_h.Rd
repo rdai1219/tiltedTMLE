@@ -7,7 +7,9 @@
 fit_eps_h(Y, H, logitQAW, indices = seq_along(Y))
 }
 \arguments{
-\item{Y}{Outcome vector (on the subset of rows the fluctuation is fit on).}
+\item{Y}{Binary (\code{0}/\code{1}) response vector (on the subset of rows the
+fluctuation is fit on) -- the outcome \code{Y} when targeting \code{Q}, or a
+selection/treatment indicator (\code{D}/\code{A}) when targeting \code{g}/\code{s}.}
 
 \item{H}{The clever covariate, same length as \code{Y}.}
 
@@ -38,4 +40,9 @@ Qfit <- fit_Q(Y, A, W)
 gfit <- fit_g(A, W)
 H <- A / gfit$g1W - (1 - A) / gfit$g0W
 fit_eps_h(Y, H, stats::qlogis(Qfit$QAW))
+}
+\seealso{
+\code{\link[=tmle_h]{tmle_h()}}, \code{\link[=tmle_bootstrap_h]{tmle_bootstrap_h()}} for callers that target \code{Q};
+\code{\link[=tmle_tilted_h]{tmle_tilted_h()}} and \code{\link[=tmle_external_tilted_h]{tmle_external_tilted_h()}} for callers that
+also use this to target \code{g}/\code{s}.
 }

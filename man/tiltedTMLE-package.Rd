@@ -44,6 +44,16 @@ trial population and an external covariate-only population (see
 outcome regression.
 }
 
+\references{
+Fang, He, and Dai, "Targeted Learning for Externally Controlled Trials
+and Beyond" (AbbVie, 2026).
+
+Fang, "Targeted Learning for Tilted Average Treatment Effects" (AbbVie, 2026).
+}
+\seealso{
+\code{\link[=estimate_tau_h_fixed]{estimate_tau_h_fixed()}}, \code{\link[=estimate_tau_h_internal_tilted]{estimate_tau_h_internal_tilted()}},
+\code{\link[=estimate_tau_h_external_tilted]{estimate_tau_h_external_tilted()}}, the three top-level entry points.
+}
 \author{
 \strong{Maintainer}: Ran Dai \email{ran.dai@abbvie.com}
 

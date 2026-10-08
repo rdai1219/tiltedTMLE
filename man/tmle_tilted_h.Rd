@@ -19,9 +19,9 @@ tmle_tilted_h(
 )
 }
 \arguments{
-\item{Y}{Outcome vector.}
+\item{Y}{Binary (\code{0}/\code{1}) outcome vector; see \code{\link[=fit_Q]{fit_Q()}} Details.}
 
-\item{A}{Binary treatment vector.}
+\item{A}{Binary (\code{0}/\code{1}) treatment vector.}
 
 \item{Q1W, Q0W, QAW}{Fitted outcome regression at \code{A = 1}, \code{A = 0}, and
 the observed treatment.}
@@ -36,17 +36,30 @@ function of \code{g}; see \code{\link[=tilt_spec]{tilt_spec()}}.}
 \item{tol}{Convergence tolerance on the empirical mean of the EIF.}
 }
 \value{
-A list with components \code{estimate}, \code{se}, \code{CI}, \code{iter},
-\code{EIF}, \code{Q1W}, \code{Q0W}, \code{QAW}, \code{g1W}, \code{g0W}.
+A list with components:
+\item{estimate}{TMLE point estimate of the internally tilted ATE.}
+\item{se}{EIF-based standard error, at convergence.}
+\item{CI}{Wald 95\% confidence interval, \verb{estimate +/- 1.96 * se}.}
+\item{iter}{Number of targeting iterations used (\verb{<= max_iter}).}
+\item{EIF}{Efficient influence function at convergence, evaluated at each observation.}
+\item{Q1W,Q0W,QAW}{Targeted outcome regression at \code{A = 1}, \code{A = 0}, and the observed treatment.}
+\item{g1W,g0W}{Targeted treatment propensity at \code{A = 1} and \code{A = 0}.}
 }
 \description{
-Implements Sec 2.3 Steps 1-4 of the reference paper: initial plug-in,
-then iterative targeting of \code{Q} (Step 2(a)) and \code{g} (Step 2(b)) in
-turn, recomputing \code{tau} (Step 2(c)) and the EIF after each full
-iteration, until the empirical mean of the EIF is below \code{tol} or
-\code{max_iter} is reached (Step 3). \code{eta_dot = 0} (ATE) collapses Step
+Implements Sec 2.3 of the reference paper: an iterative TMLE that
+alternately targets the outcome regression \code{Q} and the treatment
+propensity \code{g}, since the tilting function \code{h(x) = eta(g(x))} depends
+on \code{g} itself.
+}
+\details{
+Each iteration: Step 2(a) targets \code{Q} via a logistic fluctuation with
+clever covariate \code{eta(g)/g1W} (\code{A = 1}) / \code{-eta(g)/g0W} (\code{A = 0}); Step
+2(b) targets \code{g} via a logistic fluctuation with clever covariate
+\code{eta_dot(g) * (Q1W - Q0W - tau)}; Step 2(c) recomputes \code{tau}. The loop
+(Step 3) stops once the empirical mean of the EIF is below \code{tol} or
+\code{max_iter} is reached. \code{eta_dot = 0} (the plain ATE) collapses Step
 2(b) to a no-op via \code{\link[=fit_eps_h]{fit_eps_h()}}'s existing \code{eps <- 0} guard for a
-degenerate (all-zero-covariate) fit, so ATE converges in a single
+degenerate (all-zero-covariate) fit, so the ATE converges in a single
 iteration without a special-cased branch.
 }
 \examples{
@@ -62,4 +75,8 @@ out <- tmle_tilted_h(Y, A, Qfit$Q1W, Qfit$Q0W, Qfit$QAW, gfit$g1W, gfit$g0W,
                       spec$eta, spec$eta_dot)
 out$estimate
 out$iter
+}
+\seealso{
+\code{\link[=eif_tilted_h]{eif_tilted_h()}} for the EIF this iterates to convergence,
+\code{\link[=estimate_tau_h_internal_tilted]{estimate_tau_h_internal_tilted()}} for the raw-data entry point.
 }

@@ -17,8 +17,8 @@
 #'     `g` (correct, misspecified, GLM, or SL) was actually estimated.
 #' }
 #'
-#' @param Y Outcome vector.
-#' @param A Binary treatment vector.
+#' @param Y Binary (`0`/`1`) outcome vector; see [fit_Q()] Details.
+#' @param A Binary (`0`/`1`) treatment vector.
 #' @param h Tilting-function specification; see Details.
 #' @param Qfit A fitted-Q object, as returned by [fit_Q()].
 #' @param gfit A fitted-g object, as returned by [fit_g()].
@@ -26,10 +26,24 @@
 #' @param boot_strata Optional stratification vector for the bootstrap
 #'   (defaults to `A`).
 #'
-#' @return A list with components `h`, `MLE`, `IPW`, `AIPW`, `AIPW_se`,
-#'   `TMLE`, `TMLE_se`, `TMLE_CI`, `Bootstrap_SE`,
-#'   `Bootstrap_CI_normal`, `Bootstrap_CI_percentile`, plus the fitted
-#'   objects `Qfit`, `gfit`, `tmle_fit`, `boot_fit`.
+#' @return A list with components:
+#' \item{h}{The resolved numeric tilting-function weight vector.}
+#' \item{MLE}{Plug-in (g-computation) point estimate; see [mle_h()].}
+#' \item{IPW}{Inverse-probability-weighted point estimate; see [ipw_h()].}
+#' \item{AIPW,AIPW_se}{Augmented IPW point estimate and its EIF-based
+#'   standard error; see [aipw_h()].}
+#' \item{TMLE,TMLE_se,TMLE_CI}{TMLE point estimate, EIF-based standard
+#'   error, and Wald 95% confidence interval; see [tmle_h()].}
+#' \item{Bootstrap_SE}{Target-step bootstrap standard error; see [tmle_bootstrap_h()].}
+#' \item{Bootstrap_CI_normal}{Wald 95% confidence interval using the bootstrap SE.}
+#' \item{Bootstrap_CI_percentile}{Percentile-based 95% confidence interval
+#'   from the bootstrap distribution.}
+#' \item{Qfit,gfit}{The fitted-Q and fitted-g objects passed in.}
+#' \item{tmle_fit}{The full [tmle_h()] result.}
+#' \item{boot_fit}{The full [tmle_bootstrap_h()] result.}
+#'
+#' @seealso [estimate_tau_h_fixed()], the raw-data entry point that calls
+#'   this after fitting `Q`/`g`.
 #' @examples
 #' set.seed(1)
 #' n <- 200
@@ -73,12 +87,14 @@ estimate_tau_h_fixed_given_fits <- function(Y, A, h, Qfit, gfit, n_boot = 300, b
 #' MLE/IPW/AIPW/TMLE point estimates plus TMLE's EIF-Wald and
 #' target-step bootstrap inference.
 #'
-#' @param Y Outcome vector.
-#' @param A Binary treatment vector.
+#' @param Y Binary (`0`/`1`) outcome vector; see [fit_Q()] Details.
+#' @param A Binary (`0`/`1`) treatment vector.
 #' @param W Covariate data frame.
 #' @param h Tilting-function specification; see [estimate_tau_h_fixed_given_fits()].
-#' @param Q_method,Qform,Q_SL.library Passed to [fit_Q()].
-#' @param g_method,gform,g_SL.library Passed to [fit_g()].
+#' @param Q_method,Qform,Q_SL.library Passed to [fit_Q()] as `method`,
+#'   `Qform`, `SL.library` (`Q_method` is `"glm"` or `"SL"`).
+#' @param g_method,gform,g_SL.library Passed to [fit_g()] as `method`,
+#'   `gform`, `SL.library` (`g_method` is `"glm"` or `"SL"`).
 #' @param truncate If `TRUE` (default), `gbounds` is used as given
 #'   (default `c(0.025, 0.975)`). If `FALSE`, `gbounds` is forced to
 #'   `c(0, 1)`, i.e. no truncation.
@@ -87,6 +103,12 @@ estimate_tau_h_fixed_given_fits <- function(Y, A, h, Qfit, gfit, n_boot = 300, b
 #' @param ... Passed through to [fit_Q()]/[fit_g()] (e.g. `cvControl` for SL).
 #'
 #' @return See [estimate_tau_h_fixed_given_fits()].
+#'
+#' @references Fang, He, and Dai, "Targeted Learning for Externally
+#'   Controlled Trials and Beyond" (AbbVie, 2026).
+#' @seealso [estimate_tau_h_internal_tilted()], [estimate_tau_h_external_tilted()]
+#'   for the other two tilting-function settings this package implements,
+#'   [fit_Q()], [fit_g()] for the underlying nuisance fits.
 #' @examples
 #' set.seed(1)
 #' n <- 200

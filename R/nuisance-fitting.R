@@ -1,25 +1,47 @@
 #' Fit the outcome regression Q(x, a)
 #'
-#' Fits an outcome regression of a binary `Y` on treatment `A` and
-#' covariates `W`, via logistic regression or [SuperLearner::SuperLearner()],
-#' and returns predicted values at the observed treatment, at `A = 1`,
-#' and at `A = 0`.
+#' Fits an outcome regression of `Y` on treatment `A` and covariates `W`,
+#' via logistic regression or [SuperLearner::SuperLearner()], and returns
+#' predicted values at the observed treatment, at `A = 1`, and at `A = 0`.
 #'
-#' @param Y Binary outcome vector.
-#' @param A Binary treatment vector.
+#' `Y` must currently be binary (`0`/`1`): `Q` is fit via a binomial-family
+#' model (`family = binomial()` for `method = "glm"`; a binomial-family
+#' [SuperLearner::SuperLearner()] fit for `method = "SL"`), and every TMLE
+#' fluctuation step in this package (see [fit_eps_h()]) operates on the
+#' logit scale throughout. Unlike some TMLE implementations (e.g. the CRAN
+#' `tmle` package's `maptoYstar` option), this package does not rescale a
+#' continuous `Y` onto `(0, 1)` before fitting -- passing a continuous or
+#' out-of-range `Y` will not raise an informative error, but will silently
+#' produce invalid fits and predictions.
+#'
+#' @param Y Binary (`0`/`1`) outcome vector; see Details.
+#' @param A Binary (`0`/`1`) treatment vector.
 #' @param W Covariate data frame (or matrix, coerced via [as.data.frame()]).
-#' @param method `"glm"` (default) or `"SL"` for [SuperLearner::SuperLearner()].
-#' @param Qform Optional model formula for `method = "glm"`. Defaults to
-#'   `Y ~ A * (W1 + W2 + ...)` over all columns of `W`.
-#' @param SL.library Character vector of SuperLearner wrapper names, used
-#'   when `method = "SL"`.
+#' @param method Nuisance-fitting method. `"glm"` (default) fits a single
+#'   logistic regression via [stats::glm()]. `"SL"` fits an ensemble via
+#'   [SuperLearner::SuperLearner()]; requires the (`Suggests`-only)
+#'   `SuperLearner` package to be installed, and uses `SL.library`
+#'   instead of `Qform`.
+#' @param Qform Model formula, used only when `method = "glm"` (ignored
+#'   for `method = "SL"`, which uses `SL.library` instead). Defaults to
+#'   `Y ~ A * (W1 + W2 + ...)` over all columns of `W`, i.e. treatment
+#'   interacting with every covariate.
+#' @param SL.library Character vector of SuperLearner wrapper names (e.g.
+#'   `c("SL.glm", "SL.mean")`), used only when `method = "SL"` (ignored
+#'   for `method = "glm"`, which uses `Qform` instead).
 #' @param ... Passed through to `glm()` or `SuperLearner::SuperLearner()`
 #'   (e.g. `cvControl` for SL).
 #'
-#' @return A list with components `QAW`, `Q1W`, `Q0W` (predicted
-#'   probabilities at the observed, at `A = 1`, and at `A = 0` treatment,
-#'   respectively), `fit` (the underlying fitted model object), and
-#'   `method`.
+#' @return A list with components:
+#' \item{QAW}{Fitted outcome regression at the observed treatment, `Q(A,W)`.}
+#' \item{Q1W}{Fitted outcome regression at `A = 1`, `Q(1,W)`.}
+#' \item{Q0W}{Fitted outcome regression at `A = 0`, `Q(0,W)`.}
+#' \item{fit}{The underlying fitted model object (`glm` or `SuperLearner`).}
+#' \item{method}{`"glm"` or `"SL"`, matching the `method` argument.}
+#'
+#' @seealso [fit_g()] for the companion propensity-score fit,
+#'   [predict_Qhat()] for predicting from `fit` on new covariates,
+#'   [estimate_tau_h_fixed()] for the typical calling context.
 #' @examples
 #' set.seed(1)
 #' n <- 200
@@ -63,13 +85,20 @@ fit_Q <- function(Y, A, W, method = c("glm", "SL"),
 #' [SuperLearner::SuperLearner()], with optional truncation of the fitted
 #' probabilities away from 0 and 1.
 #'
-#' @param A Binary treatment (or selection) indicator vector.
+#' @param A Binary (`0`/`1`) treatment (or selection) indicator vector.
 #' @param W Covariate data frame (or matrix, coerced via [as.data.frame()]).
-#' @param method `"glm"` (default) or `"SL"` for [SuperLearner::SuperLearner()].
-#' @param gform Optional model formula for `method = "glm"`. Defaults to
-#'   `A ~ W1 + W2 + ...` over all columns of `W`.
-#' @param SL.library Character vector of SuperLearner wrapper names, used
-#'   when `method = "SL"`.
+#' @param method Nuisance-fitting method. `"glm"` (default) fits a single
+#'   logistic regression via [stats::glm()]. `"SL"` fits an ensemble via
+#'   [SuperLearner::SuperLearner()]; requires the (`Suggests`-only)
+#'   `SuperLearner` package to be installed, and uses `SL.library`
+#'   instead of `gform`.
+#' @param gform Model formula, used only when `method = "glm"` (ignored
+#'   for `method = "SL"`, which uses `SL.library` instead). Defaults to
+#'   `A ~ W1 + W2 + ...` over all columns of `W`, i.e. main effects only,
+#'   no interactions.
+#' @param SL.library Character vector of SuperLearner wrapper names (e.g.
+#'   `c("SL.glm", "SL.mean")`), used only when `method = "SL"` (ignored
+#'   for `method = "glm"`, which uses `gform` instead).
 #' @param gbounds Length-2 vector of truncation bounds applied to the
 #'   fitted probabilities. `c(0.025, 0.975)` (default) truncates;
 #'   `c(0, 1)` is a no-op clamp (fitted probabilities from `glm`/`SL` are
@@ -77,9 +106,14 @@ fit_Q <- function(Y, A, W, method = c("glm", "SL"),
 #'   realized by callers.
 #' @param ... Passed through to `glm()` or `SuperLearner::SuperLearner()`.
 #'
-#' @return A list with components `g1W` (truncated fitted `P(A = 1 | W)`),
-#'   `g0W` (`1 - g1W`), `fit` (the underlying fitted model object), and
-#'   `method`.
+#' @return A list with components:
+#' \item{g1W}{Fitted `P(A = 1 | W)`, truncated to `gbounds`.}
+#' \item{g0W}{`1 - g1W`.}
+#' \item{fit}{The underlying fitted model object (`glm` or `SuperLearner`).}
+#' \item{method}{`"glm"` or `"SL"`, matching the `method` argument.}
+#'
+#' @seealso [fit_Q()] for the companion outcome-regression fit,
+#'   [predict_ghat()] for predicting from `fit` on new covariates.
 #' @examples
 #' set.seed(1)
 #' n <- 200
@@ -125,6 +159,7 @@ fit_g <- function(A, W, method = c("glm", "SL"),
 #' @param newdata Covariate data frame to predict at.
 #'
 #' @return Numeric vector of predicted probabilities.
+#' @seealso [fit_g()], which returns the `fit` object this function predicts from.
 #' @examples
 #' set.seed(1)
 #' n <- 200
@@ -157,6 +192,7 @@ predict_ghat <- function(g_fit, newdata) {
 #' @param W_new Covariate data frame to predict at.
 #'
 #' @return Numeric vector of predicted probabilities.
+#' @seealso [fit_Q()], which returns the `fit` object this function predicts from.
 #' @examples
 #' set.seed(1)
 #' n <- 200

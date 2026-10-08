@@ -5,7 +5,8 @@
 #' inside [tmle_external_tilted_h()].
 #'
 #' @param D Length-`N` pooled selection indicator (`1` = internal, `0` = external).
-#' @param A_int,Y_int Length-`n` internal-only treatment and outcome vectors.
+#' @param A_int,Y_int Length-`n` internal-only treatment and binary
+#'   (`0`/`1`) outcome vectors; see [fit_Q()] Details.
 #' @param idx1 Integer vector, `which(D == 1)`.
 #' @param eta_s,eta_dot_s Length-`N` pooled vectors, `eta(s1W)` and `eta_dot(s1W)`.
 #' @param Q1W,Q0W Length-`N` pooled fitted outcome regression at `A = 1`
@@ -15,8 +16,9 @@
 #' @param s1W Length-`N` pooled fitted selection propensity.
 #' @param tau Current estimate of the tilted ATE.
 #'
-#' @return Numeric vector of length `N`, the EIF evaluated at each
-#'   pooled observation.
+#' @return Numeric vector of length `N`, the efficient influence function
+#'   evaluated at each pooled observation.
+#' @seealso [tmle_external_tilted_h()], which calls this at every iteration.
 #' @examples
 #' set.seed(1)
 #' n <- 150; m <- 150
@@ -57,13 +59,19 @@ eif_external_tilted_h <- function(D, A_int, Y_int, idx1, eta_s, eta_dot_s,
 
 #' Iterative TMLE for an externally tilted ATE
 #'
-#' Implements Sec 3.3 Steps 1-4 of the reference paper: initial
-#' plug-in, then iterative targeting of `Q` (Step 2(a), fit on internal
-#' rows, applied to all `N` rows) and `s` (Step 2(b), fit on pooled
-#' rows) in turn, recomputing `tau` (Step 2(c)) and the EIF after each
-#' full iteration, until the empirical mean of the EIF is below `tol`
-#' or `max_iter` is reached. `eta_dot = 0` (ATE-I) collapses Step 2(b)
-#' to a no-op via [fit_eps_h()]'s existing `eps <- 0` guard for a
+#' Implements Sec 3.3 of the reference paper: an iterative TMLE that
+#' alternately targets the outcome regression `Q` (fit on internal rows,
+#' applied to all `N` pooled rows) and the selection propensity `s` (fit
+#' on all `N` pooled rows), since the tilting function `h(x) = eta(s(x))`
+#' depends on `s` itself. The treatment propensity `g` is fit once,
+#' upstream, and is never re-targeted inside this loop.
+#'
+#' Each iteration: Step 2(a) targets `Q` via a logistic fluctuation fit on
+#' internal rows only but applied to all `N` rows; Step 2(b) targets `s`
+#' via a logistic fluctuation fit on all `N` rows; Step 2(c) recomputes
+#' `tau`. The loop stops once the empirical mean of the EIF is below
+#' `tol` or `max_iter` is reached. `eta_dot = 0` (ATE-I) collapses Step
+#' 2(b) to a no-op via [fit_eps_h()]'s existing `eps <- 0` guard for a
 #' degenerate (all-zero-covariate) fit.
 #'
 #' `g1W_int`/`g0W_int` (length `n`, internal rows only) are used for the
@@ -84,7 +92,8 @@ eif_external_tilted_h <- function(D, A_int, Y_int, idx1, eta_s, eta_dot_s,
 #' no-op clamp, matching [fit_g()]'s `gbounds` convention.
 #'
 #' @param D Length-`N` pooled selection indicator.
-#' @param A_int,Y_int Length-`n` internal-only treatment and outcome vectors.
+#' @param A_int,Y_int Length-`n` internal-only treatment and binary
+#'   (`0`/`1`) outcome vectors; see [fit_Q()] Details.
 #' @param idx1 Integer vector, `which(D == 1)`.
 #' @param Q1W,Q0W Length-`N` pooled fitted outcome regression at `A = 1`
 #'   and `A = 0`.
@@ -102,8 +111,20 @@ eif_external_tilted_h <- function(D, A_int, Y_int, idx1, eta_s, eta_dot_s,
 #' @param max_iter Maximum number of targeting iterations.
 #' @param tol Convergence tolerance.
 #'
-#' @return A list with components `estimate`, `se`, `CI`, `iter`,
-#'   `EIF`, `Q1W`, `Q0W`, `QAW_int`, `s1W`.
+#' @return A list with components:
+#' \item{estimate}{TMLE point estimate of the externally tilted ATE.}
+#' \item{se}{EIF-based standard error, at convergence.}
+#' \item{CI}{Wald 95% confidence interval, `estimate +/- 1.96 * se`.}
+#' \item{iter}{Number of targeting iterations used (`<= max_iter`).}
+#' \item{EIF}{Efficient influence function at convergence, evaluated at
+#'   each pooled observation.}
+#' \item{Q1W,Q0W}{Targeted pooled outcome regression at `A = 1` and `A = 0`.}
+#' \item{QAW_int}{Targeted internal-only outcome regression at the observed treatment.}
+#' \item{s1W}{Targeted pooled selection propensity.}
+#'
+#' @seealso [eif_external_tilted_h()] for the EIF this iterates to
+#'   convergence, [estimate_tau_h_external_tilted()] for the raw-data
+#'   entry point.
 #' @examples
 #' set.seed(1)
 #' n <- 150; m <- 150
@@ -195,7 +216,8 @@ tmle_external_tilted_h <- function(D, A_int, Y_int, idx1,
 #' predictions EXTRAPOLATED onto all `N` pooled covariates (see
 #' [predict_Qhat()] and [estimate_tau_h_external_tilted()]).
 #'
-#' @param Y,A Length-`n` internal-only outcome and treatment vectors.
+#' @param Y,A Length-`n` internal-only binary (`0`/`1`) outcome and
+#'   treatment vectors; see [fit_Q()] Details.
 #' @param D Length-`N` pooled selection indicator.
 #' @param idx1 Integer vector, `which(D == 1)`.
 #' @param Qfit A fitted-Q object (length-`N` `Q1W`/`Q0W`, extrapolated
@@ -207,9 +229,19 @@ tmle_external_tilted_h <- function(D, A_int, Y_int, idx1,
 #' @param g1W_all,g0W_all Length-`N` pooled fitted treatment propensity.
 #' @param sbounds,max_iter,tol Passed to [tmle_external_tilted_h()].
 #'
-#' @return A list with components `h`, `MLE`, `IPW`, `TMLE`,
-#'   `TMLE_se`, `TMLE_CI`, `TMLE_iter`, plus the fitted objects `Qfit`,
-#'   `gfit`, `sfit`, `tmle_fit`.
+#' @return A list with components:
+#' \item{h}{The resolved tilting weight vector (internal rows only), `eta(sfit$g1W[idx1])`.}
+#' \item{MLE}{Plug-in (g-computation) benchmark estimate; see [mle_h()].}
+#' \item{IPW}{Inverse-probability-weighted benchmark estimate; see [ipw_h()].
+#'   (No AIPW benchmark is defined in Sec 3 of the reference paper, so none is included.)}
+#' \item{TMLE,TMLE_se,TMLE_CI}{Iterative TMLE point estimate, EIF-based
+#'   standard error, and Wald 95% confidence interval; see [tmle_external_tilted_h()].}
+#' \item{TMLE_iter}{Number of targeting iterations the TMLE used.}
+#' \item{Qfit,gfit,sfit}{The fitted-Q, fitted-g, and fitted-s objects passed in.}
+#' \item{tmle_fit}{The full [tmle_external_tilted_h()] result.}
+#'
+#' @seealso [estimate_tau_h_external_tilted()], the raw-data entry point
+#'   that calls this after fitting `Q`/`g`/`s`.
 #' @examples
 #' set.seed(1)
 #' n <- 150; m <- 150
@@ -277,15 +309,19 @@ estimate_tau_h_external_tilted_given_fits <- function(Y, A, D, idx1,
 #' `X^g`, may be a strict subset of the covariate set for `s` and `Q`,
 #' `X^s`).
 #'
-#' @param Y,A Length-`n` internal-only outcome and treatment vectors.
+#' @param Y,A Length-`n` internal-only binary (`0`/`1`) outcome and
+#'   treatment vectors; see [fit_Q()] Details.
 #' @param D Length-`N` pooled selection indicator.
 #' @param Ws Length-`N` pooled covariate data frame.
 #' @param eta,eta_dot Tilting function and its derivative; see [tilt_spec_external()].
 #' @param Wg Optional covariate data frame for fitting `g`, restricted
 #'   to internal rows (defaults to `Ws` restricted to the internal rows).
-#' @param Q_method,Qform,Q_SL.library Passed to [fit_Q()].
-#' @param g_method,gform,g_SL.library Passed to [fit_g()] for `g`.
-#' @param s_method,sform,s_SL.library Passed to [fit_g()] for `s`.
+#' @param Q_method,Qform,Q_SL.library Passed to [fit_Q()] as `method`,
+#'   `Qform`, `SL.library` (`Q_method` is `"glm"` or `"SL"`).
+#' @param g_method,gform,g_SL.library Passed to [fit_g()] for `g`, as
+#'   `method`, `gform`, `SL.library` (`g_method` is `"glm"` or `"SL"`).
+#' @param s_method,sform,s_SL.library Passed to [fit_g()] for `s`, as
+#'   `method`, `gform`, `SL.library` (`s_method` is `"glm"` or `"SL"`).
 #' @param truncate_g If `TRUE` (default), `gbounds` is used as given.
 #'   If `FALSE`, `gbounds` is forced to `c(0, 1)`.
 #' @param gbounds Treatment-propensity truncation bounds.
@@ -296,6 +332,12 @@ estimate_tau_h_external_tilted_given_fits <- function(Y, A, D, idx1,
 #' @param ... Passed through to [fit_Q()]/[fit_g()] (e.g. `cvControl` for SL).
 #'
 #' @return See [estimate_tau_h_external_tilted_given_fits()].
+#'
+#' @references Fang, "Targeted Learning for Tilted Average Treatment
+#'   Effects" (AbbVie, 2026), Sec. 3.
+#' @seealso [tilt_spec_external()] for the three named external estimands,
+#'   [estimate_tau_h_fixed()], [estimate_tau_h_internal_tilted()] for
+#'   the other two tilting-function settings this package implements.
 #' @examples
 #' set.seed(1)
 #' n <- 150; m <- 150

@@ -12,7 +12,7 @@ mle_h(h, Q1W, Q0W)
 \item{Q1W, Q0W}{Fitted outcome regression at \code{A = 1} and \code{A = 0}.}
 }
 \value{
-Numeric point estimate.
+Numeric point estimate of \eqn{\tau_h}.
 }
 \description{
 \deqn{\hat\tau_h^{MLE} = \sum_i h(X_i)[\hat Q(X_i,1)-\hat Q(X_i,0)] / \sum_i h(X_i)}
@@ -25,4 +25,8 @@ A <- rbinom(n, 1, stats::plogis(0.3 * W$X1))
 Y <- rbinom(n, 1, stats::plogis(-0.3 + 0.5 * A + 0.3 * W$X1))
 Qfit <- fit_Q(Y, A, W)
 mle_h(h = rep(1, n), Qfit$Q1W, Qfit$Q0W)
+}
+\seealso{
+\code{\link[=ipw_h]{ipw_h()}}, \code{\link[=aipw_h]{aipw_h()}} for the other Sec 2.1/3.1 benchmark
+estimators, \code{\link[=tmle_h]{tmle_h()}} for the targeted (TMLE) estimator.
 }

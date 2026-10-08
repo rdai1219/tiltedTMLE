@@ -5,7 +5,9 @@
 #' @param h Numeric tilting-function weight vector, one entry per observation.
 #' @param Q1W,Q0W Fitted outcome regression at `A = 1` and `A = 0`.
 #'
-#' @return Numeric point estimate.
+#' @return Numeric point estimate of \eqn{\tau_h}.
+#' @seealso [ipw_h()], [aipw_h()] for the other Sec 2.1/3.1 benchmark
+#'   estimators, [tmle_h()] for the targeted (TMLE) estimator.
 #' @examples
 #' set.seed(1)
 #' n <- 200
@@ -21,13 +23,15 @@ mle_h <- function(h, Q1W, Q0W) {
 
 #' Inverse-probability-weighted estimator of a tilted ATE
 #'
-#' @param Y Outcome vector.
-#' @param A Binary treatment vector.
+#' @param Y Binary (`0`/`1`) outcome vector; see [fit_Q()] Details.
+#' @param A Binary (`0`/`1`) treatment vector.
 #' @param h Numeric tilting-function weight vector.
 #' @param g1W,g0W Fitted treatment propensity at `A = 1` (and, by default,
 #'   `1 - g1W` at `A = 0`).
 #'
-#' @return Numeric point estimate.
+#' @return Numeric point estimate of \eqn{\tau_h}.
+#' @seealso [mle_h()], [aipw_h()] for the other benchmark estimators,
+#'   [tmle_h()] for the targeted (TMLE) estimator.
 #' @examples
 #' set.seed(1)
 #' n <- 200
@@ -49,7 +53,12 @@ ipw_h <- function(Y, A, h, g1W, g0W = 1 - g1W) {
 #' @inheritParams ipw_h
 #' @param Q1W,Q0W Fitted outcome regression at `A = 1` and `A = 0`.
 #'
-#' @return A list with components `estimate` and `se`.
+#' @return A list with components:
+#' \item{estimate}{Point estimate of \eqn{\tau_h}.}
+#' \item{se}{EIF-based standard error.}
+#'
+#' @seealso [mle_h()], [ipw_h()] for the other benchmark estimators,
+#'   [tmle_h()] for the targeted (TMLE) estimator.
 #' @examples
 #' set.seed(1)
 #' n <- 200
@@ -78,7 +87,9 @@ aipw_h <- function(Y, A, h, Q1W, Q0W, g1W, g0W = 1 - g1W) {
 #' tilted TMLE cores) can all call it on different subsets of rows
 #' without duplicating logic.
 #'
-#' @param Y Outcome vector (on the subset of rows the fluctuation is fit on).
+#' @param Y Binary (`0`/`1`) response vector (on the subset of rows the
+#'   fluctuation is fit on) -- the outcome `Y` when targeting `Q`, or a
+#'   selection/treatment indicator (`D`/`A`) when targeting `g`/`s`.
 #' @param H The clever covariate, same length as `Y`.
 #' @param logitQAW Offset: the current fit on the logit scale, same length as `Y`.
 #' @param indices Row indices of `Y`/`H`/`logitQAW` to fit on (defaults to all).
@@ -86,6 +97,9 @@ aipw_h <- function(Y, A, h, Q1W, Q0W, g1W, g0W = 1 - g1W) {
 #' @return Numeric scalar: the fitted fluctuation coefficient `eps`, or
 #'   `0` if the fit is degenerate or non-finite (guards against
 #'   degenerate/separated fits, e.g. in a bootstrap resample).
+#' @seealso [tmle_h()], [tmle_bootstrap_h()] for callers that target `Q`;
+#'   [tmle_tilted_h()] and [tmle_external_tilted_h()] for callers that
+#'   also use this to target `g`/`s`.
 #' @examples
 #' set.seed(1)
 #' n <- 200
@@ -110,21 +124,36 @@ fit_eps_h <- function(Y, H, logitQAW, indices = seq_along(Y)) {
 #' Implements the initial step + target step (single logistic
 #' fluctuation) and EIF-based standard error for a tilting function `h`
 #' that is either a fixed, precomputed vector or has already been
-#' evaluated at a fitted propensity score (see [estimate_tau_h_fixed()] for the
-#' higher-level entry point that handles both cases). `H`/`logitQAW` are
-#' returned so [tmle_bootstrap_h()] can reuse them exactly, instead of
-#' recomputing.
+#' evaluated at a fitted propensity score (see [estimate_tau_h_fixed()]
+#' for the higher-level entry point that handles both cases).
 #'
-#' @param Y Outcome vector.
-#' @param A Binary treatment vector.
+#' The target step runs one logistic regression of `Y` on the clever
+#' covariate `H = h_star * (A/g1W - (1-A)/g0W)` (with `h_star = h /
+#' mean(h)`), with the current fit on the logit scale as an offset (see
+#' [fit_eps_h()]). `H`/`logitQAW` are returned so [tmle_bootstrap_h()] can
+#' reuse them exactly on each bootstrap resample, instead of recomputing.
+#'
+#' @param Y Binary (`0`/`1`) outcome vector; see [fit_Q()] Details.
+#' @param A Binary (`0`/`1`) treatment vector.
 #' @param h Numeric tilting-function weight vector.
 #' @param QAW Fitted outcome regression at the observed treatment.
 #' @param Q1W,Q0W Fitted outcome regression at `A = 1` and `A = 0`.
 #' @param g1W,g0W Fitted treatment propensity at `A = 1` (and, by default,
 #'   `1 - g1W` at `A = 0`).
 #'
-#' @return A list with components `estimate`, `se`, `CI`, `eps`,
-#'   `Q1W_star`, `Q0W_star`, `EIF`, `H`, `logitQAW`.
+#' @return A list with components:
+#' \item{estimate}{TMLE point estimate of \eqn{\tau_h}.}
+#' \item{se}{EIF-based standard error.}
+#' \item{CI}{Wald 95% confidence interval, `estimate +/- 1.96 * se`.}
+#' \item{eps}{Fitted target-step fluctuation coefficient.}
+#' \item{Q1W_star,Q0W_star}{Targeted outcome regression at `A = 1` and `A = 0`.}
+#' \item{EIF}{Efficient influence function, evaluated at each observation.}
+#' \item{H}{The clever covariate used in the target step; reused by [tmle_bootstrap_h()].}
+#' \item{logitQAW}{The initial fit on the logit scale (the fluctuation's offset); reused by [tmle_bootstrap_h()].}
+#'
+#' @seealso [fit_eps_h()] for the underlying fluctuation fitter,
+#'   [tmle_bootstrap_h()] for bootstrap inference reusing this fit,
+#'   [estimate_tau_h_fixed()] for the typical calling context.
 #' @examples
 #' set.seed(1)
 #' n <- 200
@@ -165,8 +194,8 @@ tmle_h <- function(Y, A, h, QAW, Q1W, Q0W, g1W, g0W = 1 - g1W) {
 #' Initial nuisance fits (`Q1W`, `Q0W`, `g1W`, `h`) are held fixed; only
 #' the target-step fluctuation `eps` is refit on each resample.
 #'
-#' @param Y Outcome vector.
-#' @param A Binary treatment vector.
+#' @param Y Binary (`0`/`1`) outcome vector; see [fit_Q()] Details.
+#' @param A Binary (`0`/`1`) treatment vector.
 #' @param h Numeric tilting-function weight vector.
 #' @param Q1W,Q0W Fitted outcome regression at `A = 1` and `A = 0`.
 #' @param g1W,g0W Fitted treatment propensity at `A = 1` (and, by default,
@@ -179,8 +208,16 @@ tmle_h <- function(Y, A, h, QAW, Q1W, Q0W, g1W, g0W = 1 - g1W) {
 #' @param subset Row indices eligible for resampling at all (defaults to
 #'   everything).
 #'
-#' @return A list with components `estimates` (the bootstrap
-#'   distribution), `se`, `CI_normal`, `CI_percentile`.
+#' @return A list with components:
+#' \item{estimates}{Numeric vector of length `n_boot`, the bootstrap
+#'   distribution of \eqn{\hat\tau_h}.}
+#' \item{se}{Standard deviation of `estimates`.}
+#' \item{CI_normal}{Wald 95% confidence interval centered at `tmle_fit$estimate`,
+#'   using the bootstrap `se`.}
+#' \item{CI_percentile}{Percentile-based 95% confidence interval, the
+#'   2.5th/97.5th quantiles of `estimates`.}
+#'
+#' @seealso [tmle_h()], whose fit this function resamples from.
 #' @examples
 #' set.seed(1)
 #' n <- 200

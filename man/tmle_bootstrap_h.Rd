@@ -19,9 +19,9 @@ tmle_bootstrap_h(
 )
 }
 \arguments{
-\item{Y}{Outcome vector.}
+\item{Y}{Binary (\code{0}/\code{1}) outcome vector; see \code{\link[=fit_Q]{fit_Q()}} Details.}
 
-\item{A}{Binary treatment vector.}
+\item{A}{Binary (\code{0}/\code{1}) treatment vector.}
 
 \item{h}{Numeric tilting-function weight vector.}
 
@@ -42,8 +42,14 @@ composition (defaults to arm-only stratification via \code{A}).}
 everything).}
 }
 \value{
-A list with components \code{estimates} (the bootstrap
-distribution), \code{se}, \code{CI_normal}, \code{CI_percentile}.
+A list with components:
+\item{estimates}{Numeric vector of length \code{n_boot}, the bootstrap
+distribution of \eqn{\hat\tau_h}.}
+\item{se}{Standard deviation of \code{estimates}.}
+\item{CI_normal}{Wald 95\% confidence interval centered at \code{tmle_fit$estimate},
+using the bootstrap \code{se}.}
+\item{CI_percentile}{Percentile-based 95\% confidence interval, the
+2.5th/97.5th quantiles of \code{estimates}.}
 }
 \description{
 Initial nuisance fits (\code{Q1W}, \code{Q0W}, \code{g1W}, \code{h}) are held fixed; only
@@ -63,4 +69,7 @@ boot_out <- tmle_bootstrap_h(Y, A, h, Qfit$Q1W, Qfit$Q0W, gfit$g1W,
                               tmle_fit = tmle_out, n_boot = 50)
 boot_out$se
 boot_out$CI_normal
+}
+\seealso{
+\code{\link[=tmle_h]{tmle_h()}}, whose fit this function resamples from.
 }

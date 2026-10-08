@@ -15,34 +15,53 @@ fit_Q(
 )
 }
 \arguments{
-\item{Y}{Binary outcome vector.}
+\item{Y}{Binary (\code{0}/\code{1}) outcome vector; see Details.}
 
-\item{A}{Binary treatment vector.}
+\item{A}{Binary (\code{0}/\code{1}) treatment vector.}
 
 \item{W}{Covariate data frame (or matrix, coerced via \code{\link[=as.data.frame]{as.data.frame()}}).}
 
-\item{method}{\code{"glm"} (default) or \code{"SL"} for \code{\link[SuperLearner:SuperLearner]{SuperLearner::SuperLearner()}}.}
+\item{method}{Nuisance-fitting method. \code{"glm"} (default) fits a single
+logistic regression via \code{\link[stats:glm]{stats::glm()}}. \code{"SL"} fits an ensemble via
+\code{\link[SuperLearner:SuperLearner]{SuperLearner::SuperLearner()}}; requires the (\code{Suggests}-only)
+\code{SuperLearner} package to be installed, and uses \code{SL.library}
+instead of \code{Qform}.}
 
-\item{Qform}{Optional model formula for \code{method = "glm"}. Defaults to
-\code{Y ~ A * (W1 + W2 + ...)} over all columns of \code{W}.}
+\item{Qform}{Model formula, used only when \code{method = "glm"} (ignored
+for \code{method = "SL"}, which uses \code{SL.library} instead). Defaults to
+\code{Y ~ A * (W1 + W2 + ...)} over all columns of \code{W}, i.e. treatment
+interacting with every covariate.}
 
-\item{SL.library}{Character vector of SuperLearner wrapper names, used
-when \code{method = "SL"}.}
+\item{SL.library}{Character vector of SuperLearner wrapper names (e.g.
+\code{c("SL.glm", "SL.mean")}), used only when \code{method = "SL"} (ignored
+for \code{method = "glm"}, which uses \code{Qform} instead).}
 
 \item{...}{Passed through to \code{glm()} or \code{SuperLearner::SuperLearner()}
 (e.g. \code{cvControl} for SL).}
 }
 \value{
-A list with components \code{QAW}, \code{Q1W}, \code{Q0W} (predicted
-probabilities at the observed, at \code{A = 1}, and at \code{A = 0} treatment,
-respectively), \code{fit} (the underlying fitted model object), and
-\code{method}.
+A list with components:
+\item{QAW}{Fitted outcome regression at the observed treatment, \code{Q(A,W)}.}
+\item{Q1W}{Fitted outcome regression at \code{A = 1}, \code{Q(1,W)}.}
+\item{Q0W}{Fitted outcome regression at \code{A = 0}, \code{Q(0,W)}.}
+\item{fit}{The underlying fitted model object (\code{glm} or \code{SuperLearner}).}
+\item{method}{\code{"glm"} or \code{"SL"}, matching the \code{method} argument.}
 }
 \description{
-Fits an outcome regression of a binary \code{Y} on treatment \code{A} and
-covariates \code{W}, via logistic regression or \code{\link[SuperLearner:SuperLearner]{SuperLearner::SuperLearner()}},
-and returns predicted values at the observed treatment, at \code{A = 1},
-and at \code{A = 0}.
+Fits an outcome regression of \code{Y} on treatment \code{A} and covariates \code{W},
+via logistic regression or \code{\link[SuperLearner:SuperLearner]{SuperLearner::SuperLearner()}}, and returns
+predicted values at the observed treatment, at \code{A = 1}, and at \code{A = 0}.
+}
+\details{
+\code{Y} must currently be binary (\code{0}/\code{1}): \code{Q} is fit via a binomial-family
+model (\code{family = binomial()} for \code{method = "glm"}; a binomial-family
+\code{\link[SuperLearner:SuperLearner]{SuperLearner::SuperLearner()}} fit for \code{method = "SL"}), and every TMLE
+fluctuation step in this package (see \code{\link[=fit_eps_h]{fit_eps_h()}}) operates on the
+logit scale throughout. Unlike some TMLE implementations (e.g. the CRAN
+\code{tmle} package's \code{maptoYstar} option), this package does not rescale a
+continuous \code{Y} onto \verb{(0, 1)} before fitting -- passing a continuous or
+out-of-range \code{Y} will not raise an informative error, but will silently
+produce invalid fits and predictions.
 }
 \examples{
 set.seed(1)
@@ -52,4 +71,9 @@ A <- rbinom(n, 1, stats::plogis(0.3 * W$X1))
 Y <- rbinom(n, 1, stats::plogis(-0.3 + 0.5 * A + 0.3 * W$X1))
 Qfit <- fit_Q(Y, A, W)
 str(Qfit[c("QAW", "Q1W", "Q0W")])
+}
+\seealso{
+\code{\link[=fit_g]{fit_g()}} for the companion propensity-score fit,
+\code{\link[=predict_Qhat]{predict_Qhat()}} for predicting from \code{fit} on new covariates,
+\code{\link[=estimate_tau_h_fixed]{estimate_tau_h_fixed()}} for the typical calling context.
 }

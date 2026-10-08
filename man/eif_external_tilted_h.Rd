@@ -22,7 +22,8 @@ eif_external_tilted_h(
 \arguments{
 \item{D}{Length-\code{N} pooled selection indicator (\code{1} = internal, \code{0} = external).}
 
-\item{A_int, Y_int}{Length-\code{n} internal-only treatment and outcome vectors.}
+\item{A_int, Y_int}{Length-\code{n} internal-only treatment and binary
+(\code{0}/\code{1}) outcome vectors; see \code{\link[=fit_Q]{fit_Q()}} Details.}
 
 \item{idx1}{Integer vector, \code{which(D == 1)}.}
 
@@ -39,8 +40,8 @@ propensity at \code{A = 1} and \code{A = 0}.}
 \item{tau}{Current estimate of the tilted ATE.}
 }
 \value{
-Numeric vector of length \code{N}, the EIF evaluated at each
-pooled observation.
+Numeric vector of length \code{N}, the efficient influence function
+evaluated at each pooled observation.
 }
 \description{
 Evaluated at any \verb{(Q, g, s, tau)}; used both for the Step-3
@@ -68,4 +69,7 @@ tau <- sum(eta_s[idx1] * (Q1W[idx1] - Q0W[idx1])) / sum(eta_s[idx1])
 EIF <- eif_external_tilted_h(D, A_int, Y_int, idx1, eta_s, spec$eta_dot(sfit$g1W),
                               Q1W, Q0W, gfit$g1W, gfit$g0W, sfit$g1W, tau)
 mean(EIF)
+}
+\seealso{
+\code{\link[=tmle_external_tilted_h]{tmle_external_tilted_h()}}, which calls this at every iteration.
 }

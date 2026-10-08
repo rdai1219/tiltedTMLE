@@ -24,17 +24,19 @@ estimate_tau_h_internal_tilted(
 )
 }
 \arguments{
-\item{Y}{Outcome vector.}
+\item{Y}{Binary (\code{0}/\code{1}) outcome vector; see \code{\link[=fit_Q]{fit_Q()}} Details.}
 
-\item{A}{Binary treatment vector.}
+\item{A}{Binary (\code{0}/\code{1}) treatment vector.}
 
 \item{W}{Covariate data frame.}
 
 \item{eta, eta_dot}{Tilting function and its derivative; see \code{\link[=tilt_spec]{tilt_spec()}}.}
 
-\item{Q_method, Qform, Q_SL.library}{Passed to \code{\link[=fit_Q]{fit_Q()}}.}
+\item{Q_method, Qform, Q_SL.library}{Passed to \code{\link[=fit_Q]{fit_Q()}} as \code{method},
+\code{Qform}, \code{SL.library} (\code{Q_method} is \code{"glm"} or \code{"SL"}).}
 
-\item{g_method, gform, g_SL.library}{Passed to \code{\link[=fit_g]{fit_g()}}.}
+\item{g_method, gform, g_SL.library}{Passed to \code{\link[=fit_g]{fit_g()}} as \code{method},
+\code{gform}, \code{SL.library} (\code{g_method} is \code{"glm"} or \code{"SL"}).}
 
 \item{truncate}{If \code{TRUE} (default), \code{gbounds} is used as given
 (default \code{c(0.025, 0.975)}). If \code{FALSE}, \code{gbounds} is forced to
@@ -67,4 +69,13 @@ spec <- tilt_spec("ATT")
 out <- estimate_tau_h_internal_tilted(Y, A, W, spec$eta, spec$eta_dot)
 out$TMLE
 out$TMLE_iter
+}
+\references{
+Fang, "Targeted Learning for Tilted Average Treatment
+Effects" (AbbVie, 2026), Sec. 2.
+}
+\seealso{
+\code{\link[=tilt_spec]{tilt_spec()}} for the four named internal estimands,
+\code{\link[=estimate_tau_h_fixed]{estimate_tau_h_fixed()}}, \code{\link[=estimate_tau_h_external_tilted]{estimate_tau_h_external_tilted()}} for
+the other two tilting-function settings this package implements.
 }

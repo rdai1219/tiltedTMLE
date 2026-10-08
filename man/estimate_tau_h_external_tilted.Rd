@@ -31,7 +31,8 @@ estimate_tau_h_external_tilted(
 )
 }
 \arguments{
-\item{Y, A}{Length-\code{n} internal-only outcome and treatment vectors.}
+\item{Y, A}{Length-\code{n} internal-only binary (\code{0}/\code{1}) outcome and
+treatment vectors; see \code{\link[=fit_Q]{fit_Q()}} Details.}
 
 \item{D}{Length-\code{N} pooled selection indicator.}
 
@@ -42,11 +43,14 @@ estimate_tau_h_external_tilted(
 \item{Wg}{Optional covariate data frame for fitting \code{g}, restricted
 to internal rows (defaults to \code{Ws} restricted to the internal rows).}
 
-\item{Q_method, Qform, Q_SL.library}{Passed to \code{\link[=fit_Q]{fit_Q()}}.}
+\item{Q_method, Qform, Q_SL.library}{Passed to \code{\link[=fit_Q]{fit_Q()}} as \code{method},
+\code{Qform}, \code{SL.library} (\code{Q_method} is \code{"glm"} or \code{"SL"}).}
 
-\item{g_method, gform, g_SL.library}{Passed to \code{\link[=fit_g]{fit_g()}} for \code{g}.}
+\item{g_method, gform, g_SL.library}{Passed to \code{\link[=fit_g]{fit_g()}} for \code{g}, as
+\code{method}, \code{gform}, \code{SL.library} (\code{g_method} is \code{"glm"} or \code{"SL"}).}
 
-\item{s_method, sform, s_SL.library}{Passed to \code{\link[=fit_g]{fit_g()}} for \code{s}.}
+\item{s_method, sform, s_SL.library}{Passed to \code{\link[=fit_g]{fit_g()}} for \code{s}, as
+\code{method}, \code{gform}, \code{SL.library} (\code{s_method} is \code{"glm"} or \code{"SL"}).}
 
 \item{truncate_g}{If \code{TRUE} (default), \code{gbounds} is used as given.
 If \code{FALSE}, \code{gbounds} is forced to \code{c(0, 1)}.}
@@ -95,4 +99,13 @@ spec <- tilt_spec_external("ATE-O")
 out <- estimate_tau_h_external_tilted(Y, A, D, Ws, spec$eta, spec$eta_dot)
 out$TMLE
 out$TMLE_iter
+}
+\references{
+Fang, "Targeted Learning for Tilted Average Treatment
+Effects" (AbbVie, 2026), Sec. 3.
+}
+\seealso{
+\code{\link[=tilt_spec_external]{tilt_spec_external()}} for the three named external estimands,
+\code{\link[=estimate_tau_h_fixed]{estimate_tau_h_fixed()}}, \code{\link[=estimate_tau_h_internal_tilted]{estimate_tau_h_internal_tilted()}} for
+the other two tilting-function settings this package implements.
 }

@@ -7,9 +7,9 @@
 tmle_h(Y, A, h, QAW, Q1W, Q0W, g1W, g0W = 1 - g1W)
 }
 \arguments{
-\item{Y}{Outcome vector.}
+\item{Y}{Binary (\code{0}/\code{1}) outcome vector; see \code{\link[=fit_Q]{fit_Q()}} Details.}
 
-\item{A}{Binary treatment vector.}
+\item{A}{Binary (\code{0}/\code{1}) treatment vector.}
 
 \item{h}{Numeric tilting-function weight vector.}
 
@@ -21,17 +21,28 @@ tmle_h(Y, A, h, QAW, Q1W, Q0W, g1W, g0W = 1 - g1W)
 \code{1 - g1W} at \code{A = 0}).}
 }
 \value{
-A list with components \code{estimate}, \code{se}, \code{CI}, \code{eps},
-\code{Q1W_star}, \code{Q0W_star}, \code{EIF}, \code{H}, \code{logitQAW}.
+A list with components:
+\item{estimate}{TMLE point estimate of \eqn{\tau_h}.}
+\item{se}{EIF-based standard error.}
+\item{CI}{Wald 95\% confidence interval, \verb{estimate +/- 1.96 * se}.}
+\item{eps}{Fitted target-step fluctuation coefficient.}
+\item{Q1W_star,Q0W_star}{Targeted outcome regression at \code{A = 1} and \code{A = 0}.}
+\item{EIF}{Efficient influence function, evaluated at each observation.}
+\item{H}{The clever covariate used in the target step; reused by \code{\link[=tmle_bootstrap_h]{tmle_bootstrap_h()}}.}
+\item{logitQAW}{The initial fit on the logit scale (the fluctuation's offset); reused by \code{\link[=tmle_bootstrap_h]{tmle_bootstrap_h()}}.}
 }
 \description{
 Implements the initial step + target step (single logistic
 fluctuation) and EIF-based standard error for a tilting function \code{h}
 that is either a fixed, precomputed vector or has already been
-evaluated at a fitted propensity score (see \code{\link[=estimate_tau_h_fixed]{estimate_tau_h_fixed()}} for the
-higher-level entry point that handles both cases). \code{H}/\code{logitQAW} are
-returned so \code{\link[=tmle_bootstrap_h]{tmle_bootstrap_h()}} can reuse them exactly, instead of
-recomputing.
+evaluated at a fitted propensity score (see \code{\link[=estimate_tau_h_fixed]{estimate_tau_h_fixed()}}
+for the higher-level entry point that handles both cases).
+}
+\details{
+The target step runs one logistic regression of \code{Y} on the clever
+covariate \code{H = h_star * (A/g1W - (1-A)/g0W)} (with \code{h_star = h / mean(h)}), with the current fit on the logit scale as an offset (see
+\code{\link[=fit_eps_h]{fit_eps_h()}}). \code{H}/\code{logitQAW} are returned so \code{\link[=tmle_bootstrap_h]{tmle_bootstrap_h()}} can
+reuse them exactly on each bootstrap resample, instead of recomputing.
 }
 \examples{
 set.seed(1)
@@ -44,4 +55,9 @@ gfit <- fit_g(A, W)
 out <- tmle_h(Y, A, h = rep(1, n), Qfit$QAW, Qfit$Q1W, Qfit$Q0W, gfit$g1W)
 out$estimate
 out$CI
+}
+\seealso{
+\code{\link[=fit_eps_h]{fit_eps_h()}} for the underlying fluctuation fitter,
+\code{\link[=tmle_bootstrap_h]{tmle_bootstrap_h()}} for bootstrap inference reusing this fit,
+\code{\link[=estimate_tau_h_fixed]{estimate_tau_h_fixed()}} for the typical calling context.
 }

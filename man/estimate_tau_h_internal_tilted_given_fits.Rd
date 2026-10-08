@@ -16,9 +16,9 @@ estimate_tau_h_internal_tilted_given_fits(
 )
 }
 \arguments{
-\item{Y}{Outcome vector.}
+\item{Y}{Binary (\code{0}/\code{1}) outcome vector; see \code{\link[=fit_Q]{fit_Q()}} Details.}
 
-\item{A}{Binary treatment vector.}
+\item{A}{Binary (\code{0}/\code{1}) treatment vector.}
 
 \item{Qfit}{A fitted-Q object, as returned by \code{\link[=fit_Q]{fit_Q()}}.}
 
@@ -29,9 +29,17 @@ estimate_tau_h_internal_tilted_given_fits(
 \item{max_iter, tol}{Passed to \code{\link[=tmle_tilted_h]{tmle_tilted_h()}}.}
 }
 \value{
-A list with components \code{h}, \code{MLE}, \code{IPW}, \code{AIPW}, \code{AIPW_se},
-\code{TMLE}, \code{TMLE_se}, \code{TMLE_CI}, \code{TMLE_iter}, plus the fitted objects
-\code{Qfit}, \code{gfit}, \code{tmle_fit}.
+A list with components:
+\item{h}{The resolved tilting weight vector, \code{eta(gfit$g1W)}.}
+\item{MLE}{Plug-in (g-computation) benchmark estimate; see \code{\link[=mle_h]{mle_h()}}.}
+\item{IPW}{Inverse-probability-weighted benchmark estimate; see \code{\link[=ipw_h]{ipw_h()}}.}
+\item{AIPW,AIPW_se}{Augmented IPW benchmark estimate and its EIF-based
+standard error; see \code{\link[=aipw_h]{aipw_h()}}.}
+\item{TMLE,TMLE_se,TMLE_CI}{Iterative TMLE point estimate, EIF-based
+standard error, and Wald 95\% confidence interval; see \code{\link[=tmle_tilted_h]{tmle_tilted_h()}}.}
+\item{TMLE_iter}{Number of targeting iterations the TMLE used.}
+\item{Qfit,gfit}{The fitted-Q and fitted-g objects passed in.}
+\item{tmle_fit}{The full \code{\link[=tmle_tilted_h]{tmle_tilted_h()}} result.}
 }
 \description{
 MLE/IPW/AIPW here are the un-targeted benchmark estimators of Sec 2.1,
@@ -50,4 +58,8 @@ gfit <- fit_g(A, W)
 spec <- tilt_spec("ATT")
 out <- estimate_tau_h_internal_tilted_given_fits(Y, A, Qfit, gfit, spec$eta, spec$eta_dot)
 out$TMLE
+}
+\seealso{
+\code{\link[=estimate_tau_h_internal_tilted]{estimate_tau_h_internal_tilted()}}, the raw-data entry point
+that calls this after fitting \code{Q}/\code{g}.
 }

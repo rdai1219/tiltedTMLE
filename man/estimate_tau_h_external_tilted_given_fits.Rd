@@ -22,7 +22,8 @@ estimate_tau_h_external_tilted_given_fits(
 )
 }
 \arguments{
-\item{Y, A}{Length-\code{n} internal-only outcome and treatment vectors.}
+\item{Y, A}{Length-\code{n} internal-only binary (\code{0}/\code{1}) outcome and
+treatment vectors; see \code{\link[=fit_Q]{fit_Q()}} Details.}
 
 \item{D}{Length-\code{N} pooled selection indicator.}
 
@@ -43,9 +44,16 @@ onto pooled covariates; length-\code{n} \code{QAW}).}
 \item{sbounds, max_iter, tol}{Passed to \code{\link[=tmle_external_tilted_h]{tmle_external_tilted_h()}}.}
 }
 \value{
-A list with components \code{h}, \code{MLE}, \code{IPW}, \code{TMLE},
-\code{TMLE_se}, \code{TMLE_CI}, \code{TMLE_iter}, plus the fitted objects \code{Qfit},
-\code{gfit}, \code{sfit}, \code{tmle_fit}.
+A list with components:
+\item{h}{The resolved tilting weight vector (internal rows only), \code{eta(sfit$g1W[idx1])}.}
+\item{MLE}{Plug-in (g-computation) benchmark estimate; see \code{\link[=mle_h]{mle_h()}}.}
+\item{IPW}{Inverse-probability-weighted benchmark estimate; see \code{\link[=ipw_h]{ipw_h()}}.
+(No AIPW benchmark is defined in Sec 3 of the reference paper, so none is included.)}
+\item{TMLE,TMLE_se,TMLE_CI}{Iterative TMLE point estimate, EIF-based
+standard error, and Wald 95\% confidence interval; see \code{\link[=tmle_external_tilted_h]{tmle_external_tilted_h()}}.}
+\item{TMLE_iter}{Number of targeting iterations the TMLE used.}
+\item{Qfit,gfit,sfit}{The fitted-Q, fitted-g, and fitted-s objects passed in.}
+\item{tmle_fit}{The full \code{\link[=tmle_external_tilted_h]{tmle_external_tilted_h()}} result.}
 }
 \description{
 MLE/IPW here are the un-targeted benchmark estimators of Sec 3.1,
@@ -84,4 +92,8 @@ spec <- tilt_spec_external("ATE-O")
 out <- estimate_tau_h_external_tilted_given_fits(Y_int, A_int, D, idx1, Qfit, gfit, sfit,
                                                    spec$eta, spec$eta_dot, g1W_all = g1W_all)
 out$TMLE
+}
+\seealso{
+\code{\link[=estimate_tau_h_external_tilted]{estimate_tau_h_external_tilted()}}, the raw-data entry point
+that calls this after fitting \code{Q}/\code{g}/\code{s}.
 }

@@ -10,8 +10,9 @@ tilt_spec(estimand = c("ATE", "ATT", "ATC", "ATO"))
 \item{estimand}{One of \code{"ATE"}, \code{"ATT"}, \code{"ATC"}, \code{"ATO"}.}
 }
 \value{
-A list with components \code{eta} and \code{eta_dot}, each a function
-of \code{g}.
+A list with components:
+\item{eta}{Function of \code{g}, the tilting weight \code{eta(g)}.}
+\item{eta_dot}{Function of \code{g}, the derivative \verb{d/dg eta(g)}.}
 }
 \description{
 Returns \code{eta(g)} and its derivative \code{eta_dot(g)} for the four
@@ -23,4 +24,8 @@ spec <- tilt_spec("ATT")
 g <- c(0.2, 0.5, 0.8)
 spec$eta(g)
 spec$eta_dot(g)
+}
+\seealso{
+\code{\link[=estimate_tau_h_internal_tilted]{estimate_tau_h_internal_tilted()}}, the entry point this is
+normally passed to.
 }

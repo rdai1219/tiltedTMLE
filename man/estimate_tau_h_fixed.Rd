@@ -23,17 +23,19 @@ estimate_tau_h_fixed(
 )
 }
 \arguments{
-\item{Y}{Outcome vector.}
+\item{Y}{Binary (\code{0}/\code{1}) outcome vector; see \code{\link[=fit_Q]{fit_Q()}} Details.}
 
-\item{A}{Binary treatment vector.}
+\item{A}{Binary (\code{0}/\code{1}) treatment vector.}
 
 \item{W}{Covariate data frame.}
 
 \item{h}{Tilting-function specification; see \code{\link[=estimate_tau_h_fixed_given_fits]{estimate_tau_h_fixed_given_fits()}}.}
 
-\item{Q_method, Qform, Q_SL.library}{Passed to \code{\link[=fit_Q]{fit_Q()}}.}
+\item{Q_method, Qform, Q_SL.library}{Passed to \code{\link[=fit_Q]{fit_Q()}} as \code{method},
+\code{Qform}, \code{SL.library} (\code{Q_method} is \code{"glm"} or \code{"SL"}).}
 
-\item{g_method, gform, g_SL.library}{Passed to \code{\link[=fit_g]{fit_g()}}.}
+\item{g_method, gform, g_SL.library}{Passed to \code{\link[=fit_g]{fit_g()}} as \code{method},
+\code{gform}, \code{SL.library} (\code{g_method} is \code{"glm"} or \code{"SL"}).}
 
 \item{truncate}{If \code{TRUE} (default), \code{gbounds} is used as given
 (default \code{c(0.025, 0.975)}). If \code{FALSE}, \code{gbounds} is forced to
@@ -69,4 +71,13 @@ out_ate$TMLE
 ## ATT: h(x) = fitted propensity score itself
 out_att <- estimate_tau_h_fixed(Y, A, W, h = function(g1W, g0W) g1W, n_boot = 50)
 out_att$TMLE
+}
+\references{
+Fang, He, and Dai, "Targeted Learning for Externally
+Controlled Trials and Beyond" (AbbVie, 2026).
+}
+\seealso{
+\code{\link[=estimate_tau_h_internal_tilted]{estimate_tau_h_internal_tilted()}}, \code{\link[=estimate_tau_h_external_tilted]{estimate_tau_h_external_tilted()}}
+for the other two tilting-function settings this package implements,
+\code{\link[=fit_Q]{fit_Q()}}, \code{\link[=fit_g]{fit_g()}} for the underlying nuisance fits.
 }

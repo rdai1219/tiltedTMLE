@@ -7,9 +7,9 @@
 ipw_h(Y, A, h, g1W, g0W = 1 - g1W)
 }
 \arguments{
-\item{Y}{Outcome vector.}
+\item{Y}{Binary (\code{0}/\code{1}) outcome vector; see \code{\link[=fit_Q]{fit_Q()}} Details.}
 
-\item{A}{Binary treatment vector.}
+\item{A}{Binary (\code{0}/\code{1}) treatment vector.}
 
 \item{h}{Numeric tilting-function weight vector.}
 
@@ -17,7 +17,7 @@ ipw_h(Y, A, h, g1W, g0W = 1 - g1W)
 \code{1 - g1W} at \code{A = 0}).}
 }
 \value{
-Numeric point estimate.
+Numeric point estimate of \eqn{\tau_h}.
 }
 \description{
 Inverse-probability-weighted estimator of a tilted ATE
@@ -30,4 +30,8 @@ A <- rbinom(n, 1, stats::plogis(0.3 * W$X1))
 Y <- rbinom(n, 1, stats::plogis(-0.3 + 0.5 * A + 0.3 * W$X1))
 gfit <- fit_g(A, W)
 ipw_h(Y, A, h = rep(1, n), gfit$g1W)
+}
+\seealso{
+\code{\link[=mle_h]{mle_h()}}, \code{\link[=aipw_h]{aipw_h()}} for the other benchmark estimators,
+\code{\link[=tmle_h]{tmle_h()}} for the targeted (TMLE) estimator.
 }

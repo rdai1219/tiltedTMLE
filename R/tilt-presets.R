@@ -6,8 +6,12 @@
 #'
 #' @param estimand One of `"ATE"`, `"ATT"`, `"ATC"`, `"ATO"`.
 #'
-#' @return A list with components `eta` and `eta_dot`, each a function
-#'   of `g`.
+#' @return A list with components:
+#' \item{eta}{Function of `g`, the tilting weight `eta(g)`.}
+#' \item{eta_dot}{Function of `g`, the derivative `d/dg eta(g)`.}
+#'
+#' @seealso [estimate_tau_h_internal_tilted()], the entry point this is
+#'   normally passed to.
 #' @examples
 #' spec <- tilt_spec("ATT")
 #' g <- c(0.2, 0.5, 0.8)
@@ -38,8 +42,12 @@ tilt_spec <- function(estimand = c("ATE", "ATT", "ATC", "ATO")) {
 #' @param estimand One of `"ATE-I"` (internal population), `"ATE-E"`
 #'   (external population), `"ATE-O"` (overlap population).
 #'
-#' @return A list with components `eta` and `eta_dot`, each a function
-#'   of `s`.
+#' @return A list with components:
+#' \item{eta}{Function of `s`, the tilting weight `eta(s)`.}
+#' \item{eta_dot}{Function of `s`, the derivative `d/ds eta(s)`.}
+#'
+#' @seealso [estimate_tau_h_external_tilted()], the entry point this is
+#'   normally passed to.
 #' @examples
 #' spec <- tilt_spec_external("ATE-O")
 #' s <- c(0.2, 0.5, 0.8)

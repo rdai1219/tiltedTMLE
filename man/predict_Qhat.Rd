@@ -35,3 +35,6 @@ Y <- rbinom(n, 1, stats::plogis(-0.3 + 0.5 * A + 0.3 * W$X1))
 Qfit <- fit_Q(Y, A, W)
 predict_Qhat(Qfit$fit, A_new = 1, W_new = W[1:5, ])
 }
+\seealso{
+\code{\link[=fit_Q]{fit_Q()}}, which returns the \code{fit} object this function predicts from.
+}

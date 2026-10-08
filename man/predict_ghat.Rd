@@ -31,3 +31,6 @@ A <- rbinom(n, 1, stats::plogis(0.3 * W$X1))
 gfit <- fit_g(A, W)
 predict_ghat(gfit$fit, newdata = W[1:5, ])
 }
+\seealso{
+\code{\link[=fit_g]{fit_g()}}, which returns the \code{fit} object this function predicts from.
+}
