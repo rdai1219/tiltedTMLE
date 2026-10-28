@@ -81,8 +81,7 @@ longer walkthrough.
 - `vignette("tiltedTMLE")` -- a short getting-started walkthrough of all
   three entry points.
 - `help(package = "tiltedTMLE")` -- full function reference.
-- `TMLE_tilted_algorithms.pdf` (in this repo) -- the underlying derivations,
-  efficient influence functions, and algorithm pseudocode.
+
 
 ## License
 
