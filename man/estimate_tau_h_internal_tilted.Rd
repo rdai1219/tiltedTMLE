@@ -20,7 +20,13 @@ estimate_tau_h_internal_tilted(
   gbounds = c(0.025, 0.975),
   max_iter = 50,
   tol = 1e-06,
-  ...
+  pi_method = c("glm", "SL"),
+  piform = NULL,
+  pi_SL.library = c("SL.glm"),
+  pibounds = c(0.025, 1),
+  Q_args = list(),
+  g_args = list(),
+  pi_args = list()
 )
 }
 \arguments{
@@ -46,7 +52,13 @@ estimate_tau_h_internal_tilted(
 
 \item{max_iter, tol}{Passed to \code{\link[=tmle_tilted_h]{tmle_tilted_h()}}.}
 
-\item{...}{Passed through to \code{\link[=fit_Q]{fit_Q()}}/\code{\link[=fit_g]{fit_g()}} (e.g. \code{cvControl} for SL).}
+\item{pi_method, piform, pi_SL.library, pibounds}{Passed to \code{\link[=fit_pi]{fit_pi()}}; used only
+when \code{Y} has missing values.}
+
+\item{Q_args, g_args, pi_args}{Named lists of extra arguments passed ONLY to \code{\link[=fit_Q]{fit_Q()}} /
+\code{\link[=fit_g]{fit_g()}} / \code{\link[=fit_pi]{fit_pi()}} (e.g. \code{Q_args = list(cvControl = list(V = 5))} for SL).
+Replaces the old shared \code{...}, so settings meant for one fit can no longer leak
+into another.}
 }
 \value{
 See \code{\link[=estimate_tau_h_internal_tilted_given_fits]{estimate_tau_h_internal_tilted_given_fits()}}.
@@ -57,6 +69,14 @@ function pair \verb{(eta, eta_dot)} (e.g. from \code{\link[=tilt_spec]{tilt_spec
 and \code{g}, then returns MLE/IPW/AIPW benchmarks plus the iterative
 TMLE and its EIF-based inference.
 }
+\section{Missing outcomes}{
+
+\code{Y} may contain \code{NA} (outcome missing at random given \code{A} and \code{W}). \code{Q} is fit on
+the observed rows and predicted for all rows, \verb{pi_a(W) = P(Delta = 1 | A = a, W)}
+is fit with \code{\link[=fit_pi]{fit_pi()}}, and \code{g} is replaced by \code{g * pi} in the \code{Q} clever covariate
+and the EIF; see \code{\link[=tmle_tilted_h]{tmle_tilted_h()}}. \code{A} and \code{W} must be complete.
+}
+
 \examples{
 set.seed(1)
 n <- 200

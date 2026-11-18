@@ -11,6 +11,7 @@ fit_Q(
   method = c("glm", "SL"),
   Qform = NULL,
   SL.library = c("SL.glm"),
+  Qbounds = c(1e-04, 1 - 1e-04),
   ...
 )
 }
@@ -35,6 +36,10 @@ interacting with every covariate.}
 \item{SL.library}{Character vector of SuperLearner wrapper names (e.g.
 \code{c("SL.glm", "SL.mean")}), used only when \code{method = "SL"} (ignored
 for \code{method = "glm"}, which uses \code{Qform} instead).}
+
+\item{Qbounds}{Length-2 bounds applied to the fitted \code{Q} values, default
+\code{c(1e-4, 1 - 1e-4)}. Keeps \code{qlogis(Q)} finite in the TMLE fluctuation
+steps (an exact 0/1 would give \code{Inf}). \code{c(0, 1)} is a no-op.}
 
 \item{...}{Passed through to \code{glm()} or \code{SuperLearner::SuperLearner()}
 (e.g. \code{cvControl} for SL).}

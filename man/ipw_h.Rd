@@ -4,7 +4,16 @@
 \alias{ipw_h}
 \title{Inverse-probability-weighted estimator of a tilted ATE}
 \usage{
-ipw_h(Y, A, h, g1W, g0W = 1 - g1W)
+ipw_h(
+  Y,
+  A,
+  h,
+  g1W,
+  g0W = 1 - g1W,
+  Delta = as.integer(!is.na(Y)),
+  pi1W = rep(1, length(Y)),
+  pi0W = rep(1, length(Y))
+)
 }
 \arguments{
 \item{Y}{Binary (\code{0}/\code{1}) outcome vector; see \code{\link[=fit_Q]{fit_Q()}} Details.}
@@ -15,6 +24,12 @@ ipw_h(Y, A, h, g1W, g0W = 1 - g1W)
 
 \item{g1W, g0W}{Fitted treatment propensity at \code{A = 1} (and, by default,
 \code{1 - g1W} at \code{A = 0}).}
+
+\item{Delta}{Indicator that \code{Y} is observed. Default \code{1 - is.na(Y)}; \code{Y}
+may be \code{NA} where \code{Delta = 0}.}
+
+\item{pi1W, pi0W}{Missing-outcome propensity \verb{P(Delta = 1 | A = a, W)} at
+\code{A = 1} and \code{A = 0} (see \code{\link[=fit_pi]{fit_pi()}}). Default \code{1}, i.e. no missing outcomes.}
 }
 \value{
 Numeric point estimate of \eqn{\tau_h}.

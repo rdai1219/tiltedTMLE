@@ -15,7 +15,10 @@ tmle_bootstrap_h(
   tmle_fit,
   n_boot = 300,
   strata = A,
-  subset = seq_along(Y)
+  subset = seq_along(Y),
+  Delta = as.integer(!is.na(Y)),
+  pi1W = rep(1, length(Y)),
+  pi0W = rep(1, length(Y))
 )
 }
 \arguments{
@@ -40,6 +43,10 @@ composition (defaults to arm-only stratification via \code{A}).}
 
 \item{subset}{Row indices eligible for resampling at all (defaults to
 everything).}
+
+\item{Delta, pi1W, pi0W}{Missing-outcome indicator and propensity, as in
+\code{\link[=tmle_h]{tmle_h()}}. Whole rows are resampled; \code{eps} is refit on the resampled rows
+with \code{Delta = 1}.}
 }
 \value{
 A list with components:

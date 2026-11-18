@@ -4,7 +4,19 @@
 \alias{tmle_h}
 \title{Targeted maximum likelihood estimator (TMLE) of a tilted ATE for a fixed h}
 \usage{
-tmle_h(Y, A, h, QAW, Q1W, Q0W, g1W, g0W = 1 - g1W)
+tmle_h(
+  Y,
+  A,
+  h,
+  QAW,
+  Q1W,
+  Q0W,
+  g1W,
+  g0W = 1 - g1W,
+  Delta = as.integer(!is.na(Y)),
+  pi1W = rep(1, length(Y)),
+  pi0W = rep(1, length(Y))
+)
 }
 \arguments{
 \item{Y}{Binary (\code{0}/\code{1}) outcome vector; see \code{\link[=fit_Q]{fit_Q()}} Details.}
@@ -19,6 +31,11 @@ tmle_h(Y, A, h, QAW, Q1W, Q0W, g1W, g0W = 1 - g1W)
 
 \item{g1W, g0W}{Fitted treatment propensity at \code{A = 1} (and, by default,
 \code{1 - g1W} at \code{A = 0}).}
+
+\item{Delta, pi1W, pi0W}{Missing-outcome indicator and propensity
+\verb{P(Delta = 1 | A = a, W)}; see \code{\link[=ipw_h]{ipw_h()}}. With missing outcomes the clever
+covariate uses \code{g * pi} in place of \code{g}, the target step is fit on the rows
+with \code{Delta = 1}, and the EIF residual is multiplied by \code{Delta}.}
 }
 \value{
 A list with components:

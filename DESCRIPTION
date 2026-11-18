@@ -1,6 +1,6 @@
 Package: tiltedTMLE
 Title: Targeted Maximum Likelihood Estimation for Tilted Average Treatment Effects
-Version: 0.0.1
+Version: 0.1.0
 Authors@R: c(
     person("Yixin", "Fang", email = "yixin.fang@abbvie.com", role = "aut"),
     person("Weili", "He", email = "weili.he@abbvie.com", role = "aut"),
@@ -31,6 +31,15 @@ Imports:
     stats
 Suggests:
     SuperLearner,
+    shiny,
+    ggplot2,
+    bslib,
+    readr,
+    readxl,
+    future,
+    promises,
+    pkgload,
+    withr,
     testthat (>= 3.0.0),
     knitr,
     rmarkdown

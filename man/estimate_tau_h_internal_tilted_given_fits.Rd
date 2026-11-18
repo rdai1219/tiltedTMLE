@@ -11,8 +11,10 @@ estimate_tau_h_internal_tilted_given_fits(
   gfit,
   eta,
   eta_dot,
+  gbounds = c(0, 1),
   max_iter = 50,
-  tol = 1e-06
+  tol = 1e-06,
+  pifit = NULL
 )
 }
 \arguments{
@@ -26,7 +28,12 @@ estimate_tau_h_internal_tilted_given_fits(
 
 \item{eta, eta_dot}{Tilting function and its derivative; see \code{\link[=tilt_spec]{tilt_spec()}}.}
 
+\item{gbounds}{Re-clamp bounds for \code{g} inside the loop; see \code{\link[=tmle_tilted_h]{tmle_tilted_h()}}.}
+
 \item{max_iter, tol}{Passed to \code{\link[=tmle_tilted_h]{tmle_tilted_h()}}.}
+
+\item{pifit}{Optional fitted missing-outcome propensity, as returned by
+\code{\link[=fit_pi]{fit_pi()}}. \code{NULL} (default) means no missing outcomes.}
 }
 \value{
 A list with components:
@@ -38,6 +45,7 @@ standard error; see \code{\link[=aipw_h]{aipw_h()}}.}
 \item{TMLE,TMLE_se,TMLE_CI}{Iterative TMLE point estimate, EIF-based
 standard error, and Wald 95\% confidence interval; see \code{\link[=tmle_tilted_h]{tmle_tilted_h()}}.}
 \item{TMLE_iter}{Number of targeting iterations the TMLE used.}
+\item{TMLE_converged}{Whether the TMLE met its stopping rule.}
 \item{Qfit,gfit}{The fitted-Q and fitted-g objects passed in.}
 \item{tmle_fit}{The full \code{\link[=tmle_tilted_h]{tmle_tilted_h()}} result.}
 }

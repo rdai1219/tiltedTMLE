@@ -1,3 +1,18 @@
+# Run SuperLearner for a binary target. SuperLearner looks up its learners (SL.glm, ...) and the
+# default screening function `All` by NAME, starting from `env`. By default that is the caller, which
+# inside this package cannot see them unless the user has attached SuperLearner with library().
+# Pointing `env` at the SuperLearner namespace finds every built-in learner, and (because a namespace
+# chain ends at the global environment) user-written learners defined in the global environment too.
+run_superlearner <- function(Y, X, SL.library, ...) {
+  dots <- list(...)
+  if (is.null(dots$env)) dots$env <- asNamespace("SuperLearner")
+  do.call(SuperLearner::SuperLearner,
+          c(list(Y = Y, X = X, family = stats::binomial(), SL.library = SL.library), dots))
+}
+
+# Internal helper: clamp x into [b[1], b[2]]. c(0, 1) is a no-op.
+clamp_bounds <- function(x, b) pmin(pmax(x, b[1]), b[2])
+
 #' Fit the outcome regression Q(x, a)
 #'
 #' Fits an outcome regression of `Y` on treatment `A` and covariates `W`,
@@ -29,6 +44,9 @@
 #' @param SL.library Character vector of SuperLearner wrapper names (e.g.
 #'   `c("SL.glm", "SL.mean")`), used only when `method = "SL"` (ignored
 #'   for `method = "glm"`, which uses `Qform` instead).
+#' @param Qbounds Length-2 bounds applied to the fitted `Q` values, default
+#'   `c(1e-4, 1 - 1e-4)`. Keeps `qlogis(Q)` finite in the TMLE fluctuation
+#'   steps (an exact 0/1 would give `Inf`). `c(0, 1)` is a no-op.
 #' @param ... Passed through to `glm()` or `SuperLearner::SuperLearner()`
 #'   (e.g. `cvControl` for SL).
 #'
@@ -52,13 +70,14 @@
 #' str(Qfit[c("QAW", "Q1W", "Q0W")])
 #' @export
 fit_Q <- function(Y, A, W, method = c("glm", "SL"),
-                   Qform = NULL, SL.library = c("SL.glm"), ...) {
+                   Qform = NULL, SL.library = c("SL.glm"),
+                   Qbounds = c(1e-4, 1 - 1e-4), ...) {
   method <- match.arg(method)
   W <- as.data.frame(W)
 
   if (method == "glm") {
     if (is.null(Qform)) Qform <- stats::as.formula(paste("Y ~ A*(", paste(names(W), collapse = "+"), ")"))
-    fit <- stats::glm(Qform, data = data.frame(Y = Y, A = A, W), family = stats::binomial())
+    fit <- stats::glm(Qform, data = data.frame(Y = Y, A = A, W), family = stats::binomial(), ...)
     QAW <- stats::predict(fit, newdata = data.frame(A = A, W), type = "response")
     Q1W <- stats::predict(fit, newdata = data.frame(A = 1, W), type = "response")
     Q0W <- stats::predict(fit, newdata = data.frame(A = 0, W), type = "response")
@@ -68,12 +87,16 @@ fit_Q <- function(Y, A, W, method = c("glm", "SL"),
            "Install it with install.packages(\"SuperLearner\").", call. = FALSE)
     }
     WA <- data.frame(A = A, W)
-    fit <- SuperLearner::SuperLearner(Y = Y, X = WA, family = stats::binomial(),
-                                       SL.library = SL.library, ...)
+    fit <- run_superlearner(Y = Y, X = WA, SL.library = SL.library, ...)
     QAW <- as.numeric(stats::predict(fit, newdata = WA)$pred)
     Q1W <- as.numeric(stats::predict(fit, newdata = data.frame(A = 1, W))$pred)
     Q0W <- as.numeric(stats::predict(fit, newdata = data.frame(A = 0, W))$pred)
   }
+
+  # Fix 1: keep Q strictly inside (0, 1)
+  QAW <- clamp_bounds(QAW, Qbounds)
+  Q1W <- clamp_bounds(Q1W, Qbounds)
+  Q0W <- clamp_bounds(Q0W, Qbounds)
 
   list(QAW = QAW, Q1W = Q1W, Q0W = Q0W, fit = fit, method = method)
 }
@@ -129,15 +152,14 @@ fit_g <- function(A, W, method = c("glm", "SL"),
 
   if (method == "glm") {
     if (is.null(gform)) gform <- stats::as.formula(paste("A ~", paste(names(W), collapse = "+")))
-    fit <- stats::glm(gform, data = data.frame(A = A, W), family = stats::binomial())
+    fit <- stats::glm(gform, data = data.frame(A = A, W), family = stats::binomial(), ...)
     g1W <- stats::predict(fit, newdata = W, type = "response")
   } else {
     if (!requireNamespace("SuperLearner", quietly = TRUE)) {
       stop("Package 'SuperLearner' is required for method = \"SL\". ",
            "Install it with install.packages(\"SuperLearner\").", call. = FALSE)
     }
-    fit <- SuperLearner::SuperLearner(Y = A, X = W, family = stats::binomial(),
-                                       SL.library = SL.library, ...)
+    fit <- run_superlearner(Y = A, X = W, SL.library = SL.library, ...)
     g1W <- as.numeric(stats::predict(fit, newdata = W)$pred)
   }
 
@@ -190,6 +212,7 @@ predict_ghat <- function(g_fit, newdata) {
 #'   `SuperLearner` object).
 #' @param A_new Fixed treatment arm (`0` or `1`) to predict at.
 #' @param W_new Covariate data frame to predict at.
+#' @param Qbounds Length-2 bounds applied to the predictions; see [fit_Q()].
 #'
 #' @return Numeric vector of predicted probabilities.
 #' @seealso [fit_Q()], which returns the `fit` object this function predicts from.
@@ -202,11 +225,12 @@ predict_ghat <- function(g_fit, newdata) {
 #' Qfit <- fit_Q(Y, A, W)
 #' predict_Qhat(Qfit$fit, A_new = 1, W_new = W[1:5, ])
 #' @export
-predict_Qhat <- function(Q_fit, A_new, W_new) {
+predict_Qhat <- function(Q_fit, A_new, W_new, Qbounds = c(1e-4, 1 - 1e-4)) {
   W_new <- as.data.frame(W_new)
-  if (inherits(Q_fit, "SuperLearner")) {
+  pred <- if (inherits(Q_fit, "SuperLearner")) {
     as.numeric(stats::predict(Q_fit, newdata = data.frame(A = A_new, W_new))$pred)
   } else {
     as.numeric(stats::predict(Q_fit, newdata = data.frame(A = A_new, W_new), type = "response"))
   }
+  clamp_bounds(pred, Qbounds)
 }

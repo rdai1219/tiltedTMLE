@@ -14,8 +14,13 @@ tmle_tilted_h(
   g0W,
   eta,
   eta_dot,
+  gbounds = c(0, 1),
+  Qbounds = c(1e-04, 1 - 1e-04),
   max_iter = 50,
-  tol = 1e-06
+  tol = 1e-06,
+  Delta = as.integer(!is.na(Y)),
+  pi1W = rep(1, length(Y)),
+  pi0W = rep(1, length(Y))
 )
 }
 \arguments{
@@ -31,9 +36,22 @@ the observed treatment.}
 \item{eta, eta_dot}{Tilting function and its derivative, each a
 function of \code{g}; see \code{\link[=tilt_spec]{tilt_spec()}}.}
 
+\item{gbounds}{Truncation bounds re-applied to \code{g1} after EVERY fluctuation
+update (Step 2(b)), mirroring \code{sbounds} in \code{\link[=tmle_external_tilted_h]{tmle_external_tilted_h()}}.
+Default \code{c(0, 1)} is a no-op; \code{\link[=estimate_tau_h_internal_tilted]{estimate_tau_h_internal_tilted()}} passes
+its own \code{gbounds}.}
+
+\item{Qbounds}{Bounds re-applied to \code{Q} after every update; see \code{\link[=fit_Q]{fit_Q()}}.}
+
 \item{max_iter}{Maximum number of targeting iterations.}
 
 \item{tol}{Convergence tolerance on the empirical mean of the EIF.}
+
+\item{Delta, pi1W, pi0W}{Missing-outcome indicator and propensity, as in
+\code{\link[=eif_tilted_h]{eif_tilted_h()}}. With missing outcomes the \code{Q} clever covariate becomes
+\code{eta(g)/(g1W*pi1W)} / \code{-eta(g)/(g0W*pi0W)} and \code{Q} is targeted on the rows
+with \code{Delta = 1}. \code{pi} is not targeted (it does not enter the tilt
+\code{eta(g)}), and the \code{g} step is unchanged because \code{A} is always observed.}
 }
 \value{
 A list with components:
@@ -41,6 +59,7 @@ A list with components:
 \item{se}{EIF-based standard error, at convergence.}
 \item{CI}{Wald 95\% confidence interval, \verb{estimate +/- 1.96 * se}.}
 \item{iter}{Number of targeting iterations used (\verb{<= max_iter}).}
+\item{converged}{\code{TRUE} if the stopping rule was met before \code{max_iter}.}
 \item{EIF}{Efficient influence function at convergence, evaluated at each observation.}
 \item{Q1W,Q0W,QAW}{Targeted outcome regression at \code{A = 1}, \code{A = 0}, and the observed treatment.}
 \item{g1W,g0W}{Targeted treatment propensity at \code{A = 1} and \code{A = 0}.}

@@ -4,7 +4,7 @@
 \alias{predict_Qhat}
 \title{Predict Q(x, a) at a fixed treatment arm from a fitted outcome-regression model}
 \usage{
-predict_Qhat(Q_fit, A_new, W_new)
+predict_Qhat(Q_fit, A_new, W_new, Qbounds = c(1e-04, 1 - 1e-04))
 }
 \arguments{
 \item{Q_fit}{The \code{fit} component of a \code{\link[=fit_Q]{fit_Q()}} result (a \code{glm} or
@@ -13,6 +13,8 @@ predict_Qhat(Q_fit, A_new, W_new)
 \item{A_new}{Fixed treatment arm (\code{0} or \code{1}) to predict at.}
 
 \item{W_new}{Covariate data frame to predict at.}
+
+\item{Qbounds}{Length-2 bounds applied to the predictions; see \code{\link[=fit_Q]{fit_Q()}}.}
 }
 \value{
 Numeric vector of predicted probabilities.

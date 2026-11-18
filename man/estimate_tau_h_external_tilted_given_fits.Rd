@@ -18,7 +18,8 @@ estimate_tau_h_external_tilted_given_fits(
   g0W_all = 1 - g1W_all,
   sbounds = c(0.025, 0.975),
   max_iter = 50,
-  tol = 1e-06
+  tol = 1e-06,
+  pifit = NULL
 )
 }
 \arguments{
@@ -42,6 +43,10 @@ onto pooled covariates; length-\code{n} \code{QAW}).}
 \item{g1W_all, g0W_all}{Length-\code{N} pooled fitted treatment propensity.}
 
 \item{sbounds, max_iter, tol}{Passed to \code{\link[=tmle_external_tilted_h]{tmle_external_tilted_h()}}.}
+
+\item{pifit}{Optional fitted missing-outcome propensity with length-\code{N} components
+\code{pi1W_all}, \code{pi0W_all} (fit on internal rows, extrapolated to all rows; built by
+\code{\link[=estimate_tau_h_external_tilted]{estimate_tau_h_external_tilted()}}). \code{NULL} (default) means no missing outcomes.}
 }
 \value{
 A list with components:
@@ -52,6 +57,7 @@ A list with components:
 \item{TMLE,TMLE_se,TMLE_CI}{Iterative TMLE point estimate, EIF-based
 standard error, and Wald 95\% confidence interval; see \code{\link[=tmle_external_tilted_h]{tmle_external_tilted_h()}}.}
 \item{TMLE_iter}{Number of targeting iterations the TMLE used.}
+\item{TMLE_converged}{Whether the TMLE met its stopping rule.}
 \item{Qfit,gfit,sfit}{The fitted-Q, fitted-g, and fitted-s objects passed in.}
 \item{tmle_fit}{The full \code{\link[=tmle_external_tilted_h]{tmle_external_tilted_h()}} result.}
 }

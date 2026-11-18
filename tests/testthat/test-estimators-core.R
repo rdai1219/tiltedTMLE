@@ -44,7 +44,7 @@ test_that("estimate_tau_h_fixed() reproduces the same TMLE as calling tmle_h() d
   out <- estimate_tau_h_fixed(d$Y, d$A, d$W, h = rep(1, length(d$Y)),
                                Q_method = "glm", Qform = Y ~ A * (X1 + X2 + X3),
                                g_method = "glm", gform = A ~ X1 + X2 + X3,
-                               truncate = FALSE, n_boot = 20)
+                               truncate = FALSE, n_boot = 20, warn_fn_h = FALSE)
 
   Qfit <- fit_Q(d$Y, d$A, d$W, method = "glm", Qform = Y ~ A * (X1 + X2 + X3))
   gfit <- fit_g(d$A, d$W, method = "glm", gform = A ~ X1 + X2 + X3, gbounds = c(0, 1))
@@ -60,6 +60,6 @@ test_that("estimate_tau_h_fixed() accepts h as a function of (g1W, g0W)", {
   out <- estimate_tau_h_fixed(d$Y, d$A, d$W, h = function(g1W, g0W) g1W,
                                Q_method = "glm", Qform = Y ~ A * (X1 + X2 + X3),
                                g_method = "glm", gform = A ~ X1 + X2 + X3,
-                               truncate = FALSE, n_boot = 20)
+                               truncate = FALSE, n_boot = 20, warn_fn_h = FALSE)
   expect_true(is.finite(out$TMLE))
 })

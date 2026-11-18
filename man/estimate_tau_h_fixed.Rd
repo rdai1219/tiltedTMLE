@@ -19,7 +19,14 @@ estimate_tau_h_fixed(
   gbounds = c(0.025, 0.975),
   n_boot = 300,
   boot_strata = NULL,
-  ...
+  warn_fn_h = TRUE,
+  pi_method = c("glm", "SL"),
+  piform = NULL,
+  pi_SL.library = c("SL.glm"),
+  pibounds = c(0.025, 1),
+  Q_args = list(),
+  g_args = list(),
+  pi_args = list()
 )
 }
 \arguments{
@@ -43,9 +50,15 @@ estimate_tau_h_fixed(
 
 \item{gbounds}{Propensity-score truncation bounds; see \code{truncate}.}
 
-\item{n_boot, boot_strata}{Passed to \code{\link[=estimate_tau_h_fixed_given_fits]{estimate_tau_h_fixed_given_fits()}}.}
+\item{n_boot, boot_strata, warn_fn_h}{Passed to \code{\link[=estimate_tau_h_fixed_given_fits]{estimate_tau_h_fixed_given_fits()}}.}
 
-\item{...}{Passed through to \code{\link[=fit_Q]{fit_Q()}}/\code{\link[=fit_g]{fit_g()}} (e.g. \code{cvControl} for SL).}
+\item{pi_method, piform, pi_SL.library, pibounds}{Passed to \code{\link[=fit_pi]{fit_pi()}} as \code{method},
+\code{piform}, \code{SL.library}, \code{pibounds}. Used only when \code{Y} has missing values.}
+
+\item{Q_args, g_args, pi_args}{Named lists of extra arguments passed ONLY to \code{\link[=fit_Q]{fit_Q()}} /
+\code{\link[=fit_g]{fit_g()}} / \code{\link[=fit_pi]{fit_pi()}} (e.g. \code{Q_args = list(cvControl = list(V = 5))} for SL).
+Replaces the old shared \code{...}, so settings meant for one fit can no longer leak
+into another.}
 }
 \value{
 See \code{\link[=estimate_tau_h_fixed_given_fits]{estimate_tau_h_fixed_given_fits()}}.
@@ -57,6 +70,16 @@ how \code{Q}/\code{g} are fit, this fits \code{Q} and \code{g}, builds \code{h},
 MLE/IPW/AIPW/TMLE point estimates plus TMLE's EIF-Wald and
 target-step bootstrap inference.
 }
+\section{Missing outcomes}{
+
+\code{Y} may contain \code{NA}. Outcomes are assumed missing at random given \code{A} and \code{W}.
+Let \code{Delta = 1} if \code{Y} is observed. \code{Q} is fit on the observed rows and predicted
+for all rows; the missingness propensity \verb{pi_a(W) = P(Delta = 1 | A = a, W)} is fit
+with \code{\link[=fit_pi]{fit_pi()}}; and \code{g} is replaced by \code{g * pi} in the clever covariate and the
+EIF (see the Remark on missing data in Fang, He, and Dai, 2026). \code{A} and \code{W} must
+be complete; see \code{\link[=add_missing_indicators]{add_missing_indicators()}} for missing covariates.
+}
+
 \examples{
 set.seed(1)
 n <- 200
@@ -69,7 +92,8 @@ out_ate <- estimate_tau_h_fixed(Y, A, W, h = rep(1, n), n_boot = 50)
 out_ate$TMLE
 
 ## ATT: h(x) = fitted propensity score itself
-out_att <- estimate_tau_h_fixed(Y, A, W, h = function(g1W, g0W) g1W, n_boot = 50)
+out_att <- estimate_tau_h_fixed(Y, A, W, h = function(g1W, g0W) g1W, n_boot = 50,
+                              warn_fn_h = FALSE)
 out_att$TMLE
 }
 \references{

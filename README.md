@@ -76,6 +76,62 @@ the full set of arguments (SuperLearner nuisance fitting, propensity
 truncation bounds, bootstrap options), or run `vignette("tiltedTMLE")` for a
 longer walkthrough.
 
+## Bootstrap inference for the tilted estimators
+
+The EIF-based Wald interval can be too narrow at moderate sample sizes. For the
+internally and externally tilted estimators there is a full-refit bootstrap:
+every resample re-fits the nuisance models and re-runs the iterative TMLE.
+
+```r
+b <- bootstrap_tau_h_internal_tilted(Y, A, W, spec_att$eta, spec_att$eta_dot, n_boot = 200)
+b$se             # bootstrap standard error
+b$CI_percentile  # percentile interval (also b$CI_normal)
+
+b2 <- bootstrap_tau_h_external_tilted(Y, A, D, Ws, spec_o$eta, spec_o$eta_dot, n_boot = 200)
+```
+
+## Missing baseline covariates
+
+The estimators require complete data. Missing *outcomes* (`NA` in `Y`, missing at random given `A` and `W`) are supported in all three
+entry points: the package fits `P(outcome observed | A, W)` and adjusts the TMLE automatically.
+
+Missing *covariates* can be handled with
+the indicator method (mean/majority-value imputation plus a `<name>_miss`
+indicator column) before calling any entry point. Missing treatments are not supported.
+
+```r
+W_aug <- add_missing_indicators(W)   # for the external setting, apply to the pooled Ws
+out <- estimate_tau_h_internal_tilted(Y, A, W_aug, spec_att$eta, spec_att$eta_dot)
+```
+
+## Shiny app
+
+```r
+tiltedTMLE::run_app()
+```
+
+For the internally and externally tilted methods you can pick ATE / ATT / ATC / ATO (ATE-I / ATE-E / ATE-O) or
+**Custom** and type your own tilting function eta(g) (or eta(s)); for the fixed-h method you supply a column of
+weights h(x).
+
+Upload a data file (CSV or Excel), map the outcome, treatment and covariates (and, for the external
+setting, the internal/external indicator), choose the estimand and models, and run. The app runs the
+analysis in a background R process, shows the estimates with diagnostics and plots, and lets you
+download the estimates (CSV), the plots (PNG), an R script that reproduces the analysis, and an HTML
+report. It keeps data in memory only. Needs the suggested packages `shiny`, `bslib`, `readr`,
+`readxl`, `future`, `promises` and `ggplot2` (plus `rmarkdown` for the report).
+
+## Notes
+
+- `estimate_tau_h_fixed()` accepts `h` as a function of the fitted propensity
+  score (e.g. the ATT), but then treats `h` as known, so its standard errors are
+  not valid for such `h` and a warning is issued. Use
+  `estimate_tau_h_internal_tilted()` for the ATT/ATC/ATO.
+- Extra arguments for the nuisance fits go in `Q_args`, `g_args` and `s_args`
+  (named lists), e.g. `Q_args = list(cvControl = list(V = 5))` for SuperLearner.
+- Each tilted fit reports `TMLE_converged`; a warning is given if the iteration
+  hits `max_iter`.
+
 ## Documentation
 
 - `vignette("tiltedTMLE")` -- a short getting-started walkthrough of all

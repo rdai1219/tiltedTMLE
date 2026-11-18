@@ -4,7 +4,20 @@
 \alias{eif_tilted_h}
 \title{Efficient influence function for an internally tilted ATE}
 \usage{
-eif_tilted_h(Y, A, eta_g, eta_dot_g, Q1W, Q0W, g1W, g0W, tau)
+eif_tilted_h(
+  Y,
+  A,
+  eta_g,
+  eta_dot_g,
+  Q1W,
+  Q0W,
+  g1W,
+  g0W,
+  tau,
+  Delta = as.integer(!is.na(Y)),
+  pi1W = rep(1, length(Y)),
+  pi0W = rep(1, length(Y))
+)
 }
 \arguments{
 \item{Y}{Binary (\code{0}/\code{1}) outcome vector; see \code{\link[=fit_Q]{fit_Q()}} Details.}
@@ -20,6 +33,11 @@ eif_tilted_h(Y, A, eta_g, eta_dot_g, Q1W, Q0W, g1W, g0W, tau)
 \item{g1W, g0W}{Fitted treatment propensity at \code{A = 1} and \code{A = 0}.}
 
 \item{tau}{Current estimate of the tilted ATE.}
+
+\item{Delta}{Indicator that \code{Y} is observed; default \code{1 - is.na(Y)}.}
+
+\item{pi1W, pi0W}{Missing-outcome propensity \verb{P(Delta = 1 | A = a, W)};
+default \code{1} (no missing outcomes). See \code{\link[=fit_pi]{fit_pi()}}.}
 }
 \value{
 Numeric vector, the efficient influence function evaluated at
@@ -29,6 +47,12 @@ each observation.
 Evaluated at any \verb{(Q, g, tau)}; used both for the Step-3 convergence
 check and for the final standard error at convergence inside
 \code{\link[=tmle_tilted_h]{tmle_tilted_h()}}.
+}
+\details{
+With missing outcomes (missing at random given \code{A}, \code{W}) only the
+residual term changes: \code{(A/g1W - (1-A)/g0W) * (Y - Q)} becomes
+\code{Delta * (A/(g1W*pi1W) - (1-A)/(g0W*pi0W)) * (Y - Q)}. The other two
+terms involve only \code{A} and \code{W}, which are fully observed.
 }
 \examples{
 set.seed(1)

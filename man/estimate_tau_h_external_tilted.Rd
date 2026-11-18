@@ -27,7 +27,14 @@ estimate_tau_h_external_tilted(
   sbounds = c(0.025, 0.975),
   max_iter = 50,
   tol = 1e-06,
-  ...
+  pi_method = c("glm", "SL"),
+  piform = NULL,
+  pi_SL.library = c("SL.glm"),
+  pibounds = c(0.025, 1),
+  Q_args = list(),
+  g_args = list(),
+  s_args = list(),
+  pi_args = list()
 )
 }
 \arguments{
@@ -64,7 +71,12 @@ If \code{FALSE}, \code{sbounds} is forced to \code{c(0, 1)}.}
 
 \item{max_iter, tol}{Passed to \code{\link[=tmle_external_tilted_h]{tmle_external_tilted_h()}}.}
 
-\item{...}{Passed through to \code{\link[=fit_Q]{fit_Q()}}/\code{\link[=fit_g]{fit_g()}} (e.g. \code{cvControl} for SL).}
+\item{pi_method, piform, pi_SL.library, pibounds}{Passed to \code{\link[=fit_pi]{fit_pi()}}; used only when
+\code{Y} has missing values. \code{pi} is fit on the internal rows (covariates \code{Ws} and \code{A}).}
+
+\item{Q_args, g_args, s_args, pi_args}{Named lists of extra arguments passed ONLY to the
+\code{Q}, \code{g}, \code{s} and \code{pi} fits respectively (e.g. \code{Q_args = list(cvControl = list(V = 5))}
+for SL). Replaces the old shared \code{...}.}
 }
 \value{
 See \code{\link[=estimate_tau_h_external_tilted_given_fits]{estimate_tau_h_external_tilted_given_fits()}}.
@@ -86,6 +98,15 @@ the reference paper's convention that the confounder set for \code{g},
 \code{X^g}, may be a strict subset of the covariate set for \code{s} and \code{Q},
 \code{X^s}).
 }
+\section{Missing outcomes}{
+
+\code{Y} (internal rows only) may contain \code{NA}, missing at random given \code{A} and \code{Ws}.
+\code{Q} is fit on the internal rows with an observed outcome and predicted for all \code{N} rows;
+\verb{pi_a(X) = P(Delta = 1 | A = a, X, D = 1)} is fit on the internal rows with \code{\link[=fit_pi]{fit_pi()}}
+and extrapolated to the external rows; \code{g} is replaced by \code{g * pi} in the \code{Q} clever
+covariate and the EIF. \code{A}, \code{D}, \code{Ws} must be complete.
+}
+
 \examples{
 set.seed(1)
 n <- 150; m <- 150

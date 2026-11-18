@@ -16,7 +16,10 @@ eif_external_tilted_h(
   g1W_int,
   g0W_int,
   s1W,
-  tau
+  tau,
+  Delta_int = as.integer(!is.na(Y_int)),
+  pi1W_int = rep(1, length(Y_int)),
+  pi0W_int = rep(1, length(Y_int))
 )
 }
 \arguments{
@@ -38,6 +41,12 @@ propensity at \code{A = 1} and \code{A = 0}.}
 \item{s1W}{Length-\code{N} pooled fitted selection propensity.}
 
 \item{tau}{Current estimate of the tilted ATE.}
+
+\item{Delta_int}{Length-\code{n} indicator that \code{Y_int} is observed; default \code{1 - is.na(Y_int)}.}
+
+\item{pi1W_int, pi0W_int}{Length-\code{n} internal-only missing-outcome propensity
+\verb{P(Delta = 1 | A = a, X, D = 1)} at \code{A = 1} and \code{A = 0}; default \code{1} (no missing
+outcomes). See \code{\link[=fit_pi]{fit_pi()}}.}
 }
 \value{
 Numeric vector of length \code{N}, the efficient influence function
@@ -47,6 +56,12 @@ evaluated at each pooled observation.
 Evaluated at any \verb{(Q, g, s, tau)}; used both for the Step-3
 convergence check and for the final standard error at convergence
 inside \code{\link[=tmle_external_tilted_h]{tmle_external_tilted_h()}}.
+}
+\details{
+With missing outcomes (missing at random given \code{A}, \code{X} among internal rows)
+only term 1 changes: its residual \code{(A/g1 - (1-A)/g0) * (Y - Q)} becomes
+\code{Delta * (A/(g1*pi1) - (1-A)/(g0*pi0)) * (Y - Q)}. Terms 2 and 3 involve only
+covariates and the selection indicator \code{D}, which are always observed.
 }
 \examples{
 set.seed(1)

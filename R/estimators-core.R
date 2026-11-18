@@ -28,6 +28,10 @@ mle_h <- function(h, Q1W, Q0W) {
 #' @param h Numeric tilting-function weight vector.
 #' @param g1W,g0W Fitted treatment propensity at `A = 1` (and, by default,
 #'   `1 - g1W` at `A = 0`).
+#' @param Delta Indicator that `Y` is observed. Default `1 - is.na(Y)`; `Y`
+#'   may be `NA` where `Delta = 0`.
+#' @param pi1W,pi0W Missing-outcome propensity `P(Delta = 1 | A = a, W)` at
+#'   `A = 1` and `A = 0` (see [fit_pi()]). Default `1`, i.e. no missing outcomes.
 #'
 #' @return Numeric point estimate of \eqn{\tau_h}.
 #' @seealso [mle_h()], [aipw_h()] for the other benchmark estimators,
@@ -41,8 +45,11 @@ mle_h <- function(h, Q1W, Q0W) {
 #' gfit <- fit_g(A, W)
 #' ipw_h(Y, A, h = rep(1, n), gfit$g1W)
 #' @export
-ipw_h <- function(Y, A, h, g1W, g0W = 1 - g1W) {
-  sum(h * (A * Y / g1W - (1 - A) * Y / g0W)) / sum(h)
+ipw_h <- function(Y, A, h, g1W, g0W = 1 - g1W,
+                  Delta = as.integer(!is.na(Y)),
+                  pi1W = rep(1, length(Y)), pi0W = rep(1, length(Y))) {
+  Y0 <- ifelse(Delta == 1, Y, 0)   # missing outcomes get weight 0 through Delta
+  sum(h * (Delta * A * Y0 / (g1W * pi1W) - Delta * (1 - A) * Y0 / (g0W * pi0W))) / sum(h)
 }
 
 #' Augmented inverse-probability-weighted (AIPW) estimator of a tilted ATE
@@ -69,10 +76,16 @@ ipw_h <- function(Y, A, h, g1W, g0W = 1 - g1W) {
 #' gfit <- fit_g(A, W)
 #' aipw_h(Y, A, h = rep(1, n), Qfit$Q1W, Qfit$Q0W, gfit$g1W)
 #' @export
-aipw_h <- function(Y, A, h, Q1W, Q0W, g1W, g0W = 1 - g1W) {
+aipw_h <- function(Y, A, h, Q1W, Q0W, g1W, g0W = 1 - g1W,
+                   Delta = as.integer(!is.na(Y)),
+                   pi1W = rep(1, length(Y)), pi0W = rep(1, length(Y))) {
   N <- length(Y)
   h_star <- h / mean(h)
-  terms <- Q1W - Q0W + A / g1W * (Y - Q1W) - (1 - A) / g0W * (Y - Q0W)
+  Y0 <- ifelse(Delta == 1, Y, 0)
+  # Residual terms only count where the outcome is observed (Delta = 1),
+  # weighted by 1 / (P(A = a | W) * P(Delta = 1 | A = a, W)).
+  terms <- Q1W - Q0W +
+    Delta * (A / (g1W * pi1W) * (Y0 - Q1W) - (1 - A) / (g0W * pi0W) * (Y0 - Q0W))
   estimate <- mean(h_star * terms)
   EIF <- h_star * (terms - estimate)
   list(estimate = estimate, se = sqrt(mean(EIF^2) / N))
@@ -140,6 +153,10 @@ fit_eps_h <- function(Y, H, logitQAW, indices = seq_along(Y)) {
 #' @param Q1W,Q0W Fitted outcome regression at `A = 1` and `A = 0`.
 #' @param g1W,g0W Fitted treatment propensity at `A = 1` (and, by default,
 #'   `1 - g1W` at `A = 0`).
+#' @param Delta,pi1W,pi0W Missing-outcome indicator and propensity
+#'   `P(Delta = 1 | A = a, W)`; see [ipw_h()]. With missing outcomes the clever
+#'   covariate uses `g * pi` in place of `g`, the target step is fit on the rows
+#'   with `Delta = 1`, and the EIF residual is multiplied by `Delta`.
 #'
 #' @return A list with components:
 #' \item{estimate}{TMLE point estimate of \eqn{\tau_h}.}
@@ -166,21 +183,28 @@ fit_eps_h <- function(Y, H, logitQAW, indices = seq_along(Y)) {
 #' out$estimate
 #' out$CI
 #' @export
-tmle_h <- function(Y, A, h, QAW, Q1W, Q0W, g1W, g0W = 1 - g1W) {
+tmle_h <- function(Y, A, h, QAW, Q1W, Q0W, g1W, g0W = 1 - g1W,
+                   Delta = as.integer(!is.na(Y)),
+                   pi1W = rep(1, length(Y)), pi0W = rep(1, length(Y))) {
   N <- length(Y)
   h_star <- h / mean(h)
-  HAW <- A / g1W - (1 - A) / g0W
+  Y0 <- ifelse(Delta == 1, Y, 0)         # Y with missing entries set to 0 (they are never used)
+  gpi1 <- g1W * pi1W                     # P(A = 1 and observed | W)
+  gpi0 <- g0W * pi0W                     # P(A = 0 and observed | W)
+  HAW <- A / gpi1 - (1 - A) / gpi0
   H <- h_star * HAW
   logitQAW <- stats::qlogis(QAW)
 
-  eps <- fit_eps_h(Y, H, logitQAW)
+  # Target step: fit eps on the rows with an observed outcome only
+  eps <- fit_eps_h(Y, H, logitQAW, indices = which(Delta == 1))
 
   QAW_star <- stats::plogis(logitQAW + eps * H)
-  Q1W_star <- stats::plogis(stats::qlogis(Q1W) + eps * (h_star / g1W))
-  Q0W_star <- stats::plogis(stats::qlogis(Q0W) - eps * (h_star / g0W))
+  Q1W_star <- stats::plogis(stats::qlogis(Q1W) + eps * (h_star / gpi1))
+  Q0W_star <- stats::plogis(stats::qlogis(Q0W) - eps * (h_star / gpi0))
 
+  # Plug-in over ALL rows (Q is predicted for everyone, including missing Y)
   estimate <- sum(h * (Q1W_star - Q0W_star)) / sum(h)
-  EIF <- h_star * (Q1W_star - Q0W_star - estimate) + h_star * HAW * (Y - QAW_star)
+  EIF <- h_star * (Q1W_star - Q0W_star - estimate) + Delta * h_star * HAW * (Y0 - QAW_star)
   se <- sqrt(mean(EIF^2) / N)
   ci <- estimate + c(-1, 1) * stats::qnorm(0.975) * se
 
@@ -207,6 +231,9 @@ tmle_h <- function(Y, A, h, QAW, Q1W, Q0W, g1W, g0W = 1 - g1W) {
 #'   composition (defaults to arm-only stratification via `A`).
 #' @param subset Row indices eligible for resampling at all (defaults to
 #'   everything).
+#' @param Delta,pi1W,pi0W Missing-outcome indicator and propensity, as in
+#'   [tmle_h()]. Whole rows are resampled; `eps` is refit on the resampled rows
+#'   with `Delta = 1`.
 #'
 #' @return A list with components:
 #' \item{estimates}{Numeric vector of length `n_boot`, the bootstrap
@@ -235,19 +262,25 @@ tmle_h <- function(Y, A, h, QAW, Q1W, Q0W, g1W, g0W = 1 - g1W) {
 #' @export
 tmle_bootstrap_h <- function(Y, A, h, Q1W, Q0W, g1W, g0W = 1 - g1W,
                               tmle_fit, n_boot = 300,
-                              strata = A, subset = seq_along(Y)) {
+                              strata = A, subset = seq_along(Y),
+                              Delta = as.integer(!is.na(Y)),
+                              pi1W = rep(1, length(Y)), pi0W = rep(1, length(Y))) {
   h_star <- h / mean(h)
   H <- tmle_fit$H
   logitQAW <- tmle_fit$logitQAW
+  gpi1 <- g1W * pi1W
+  gpi0 <- g0W * pi0W
 
   strata_id <- split(subset, strata[subset])
 
   boot_est <- numeric(n_boot)
   for (b in seq_len(n_boot)) {
-    boot_id <- unlist(lapply(strata_id, function(idx) sample(idx, length(idx), replace = TRUE)))
-    eps_b <- fit_eps_h(Y, H, logitQAW, indices = boot_id)
-    Q1_b <- stats::plogis(stats::qlogis(Q1W) + eps_b * (h_star / g1W))
-    Q0_b <- stats::plogis(stats::qlogis(Q0W) - eps_b * (h_star / g0W))
+    # sample(idx, ...) would misbehave for a length-1 stratum, so index explicitly
+    boot_id <- unlist(lapply(strata_id, function(idx) idx[sample.int(length(idx), replace = TRUE)]))
+    obs_id <- boot_id[Delta[boot_id] == 1]   # only observed outcomes inform eps
+    eps_b <- fit_eps_h(Y, H, logitQAW, indices = obs_id)
+    Q1_b <- stats::plogis(stats::qlogis(Q1W) + eps_b * (h_star / gpi1))
+    Q0_b <- stats::plogis(stats::qlogis(Q0W) - eps_b * (h_star / gpi0))
     boot_est[b] <- sum(h * (Q1_b - Q0_b)) / sum(h)
   }
 

@@ -20,8 +20,12 @@ tmle_external_tilted_h(
   eta,
   eta_dot,
   sbounds = c(0.025, 0.975),
+  Qbounds = c(1e-04, 1 - 1e-04),
   max_iter = 50,
-  tol = 1e-06
+  tol = 1e-06,
+  Delta_int = as.integer(!is.na(Y_int)),
+  pi1W_all = rep(1, length(D)),
+  pi0W_all = rep(1, length(D))
 )
 }
 \arguments{
@@ -52,9 +56,19 @@ function of \code{s}; see \code{\link[=tilt_spec_external]{tilt_spec_external()}
 \item{sbounds}{Truncation bounds re-applied to \code{s1} after every
 fluctuation update; see Details.}
 
+\item{Qbounds}{Bounds re-applied to \code{Q} after every update; see \code{\link[=fit_Q]{fit_Q()}}.}
+
 \item{max_iter}{Maximum number of targeting iterations.}
 
 \item{tol}{Convergence tolerance.}
+
+\item{Delta_int}{Length-\code{n} indicator that \code{Y_int} is observed; default \code{1 - is.na(Y_int)}.}
+
+\item{pi1W_all, pi0W_all}{Length-\code{N} pooled missing-outcome propensity
+\verb{P(Delta = 1 | A = a, X, D = 1)}, fit on internal rows and extrapolated onto
+external rows (like \code{g1W_all}); default \code{1}. With missing outcomes the \code{Q} clever
+covariate becomes \code{eta(s)/(g*pi)} and \code{Q} is targeted on the internal rows with
+\code{Delta = 1}. \code{pi} is not targeted (it does not enter the tilt \code{eta(s)}).}
 }
 \value{
 A list with components:
@@ -62,6 +76,7 @@ A list with components:
 \item{se}{EIF-based standard error, at convergence.}
 \item{CI}{Wald 95\% confidence interval, \verb{estimate +/- 1.96 * se}.}
 \item{iter}{Number of targeting iterations used (\verb{<= max_iter}).}
+\item{converged}{\code{TRUE} if the stopping rule was met before \code{max_iter}.}
 \item{EIF}{Efficient influence function at convergence, evaluated at
 each pooled observation.}
 \item{Q1W,Q0W}{Targeted pooled outcome regression at \code{A = 1} and \code{A = 0}.}

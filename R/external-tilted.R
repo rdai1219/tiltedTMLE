@@ -15,6 +15,15 @@
 #'   propensity at `A = 1` and `A = 0`.
 #' @param s1W Length-`N` pooled fitted selection propensity.
 #' @param tau Current estimate of the tilted ATE.
+#' @param Delta_int Length-`n` indicator that `Y_int` is observed; default `1 - is.na(Y_int)`.
+#' @param pi1W_int,pi0W_int Length-`n` internal-only missing-outcome propensity
+#'   `P(Delta = 1 | A = a, X, D = 1)` at `A = 1` and `A = 0`; default `1` (no missing
+#'   outcomes). See [fit_pi()].
+#'
+#' @details With missing outcomes (missing at random given `A`, `X` among internal rows)
+#'   only term 1 changes: its residual `(A/g1 - (1-A)/g0) * (Y - Q)` becomes
+#'   `Delta * (A/(g1*pi1) - (1-A)/(g0*pi0)) * (Y - Q)`. Terms 2 and 3 involve only
+#'   covariates and the selection indicator `D`, which are always observed.
 #'
 #' @return Numeric vector of length `N`, the efficient influence function
 #'   evaluated at each pooled observation.
@@ -42,13 +51,18 @@
 #' mean(EIF)
 #' @export
 eif_external_tilted_h <- function(D, A_int, Y_int, idx1, eta_s, eta_dot_s,
-                                   Q1W, Q0W, g1W_int, g0W_int, s1W, tau) {
+                                   Q1W, Q0W, g1W_int, g0W_int, s1W, tau,
+                                   Delta_int = as.integer(!is.na(Y_int)),
+                                   pi1W_int = rep(1, length(Y_int)),
+                                   pi0W_int = rep(1, length(Y_int))) {
   N <- length(D)
   theta2 <- mean(D * eta_s)
 
+  Y0_int <- ifelse(Delta_int == 1, Y_int, 0)   # missing Y never used: multiplied by Delta = 0
   term1 <- numeric(N)
-  term1[idx1] <- eta_s[idx1] * (A_int / g1W_int * (Y_int - Q1W[idx1]) -
-                                 (1 - A_int) / g0W_int * (Y_int - Q0W[idx1]))
+  term1[idx1] <- eta_s[idx1] * Delta_int *
+    (A_int / (g1W_int * pi1W_int) * (Y0_int - Q1W[idx1]) -
+       (1 - A_int) / (g0W_int * pi0W_int) * (Y0_int - Q0W[idx1]))
   term1 <- term1 / theta2
 
   term2 <- (s1W * eta_s / theta2) * (Q1W - Q0W - tau)
@@ -108,14 +122,22 @@ eif_external_tilted_h <- function(D, A_int, Y_int, idx1, eta_s, eta_dot_s,
 #'   function of `s`; see [tilt_spec_external()].
 #' @param sbounds Truncation bounds re-applied to `s1` after every
 #'   fluctuation update; see Details.
+#' @param Qbounds Bounds re-applied to `Q` after every update; see [fit_Q()].
 #' @param max_iter Maximum number of targeting iterations.
 #' @param tol Convergence tolerance.
+#' @param Delta_int Length-`n` indicator that `Y_int` is observed; default `1 - is.na(Y_int)`.
+#' @param pi1W_all,pi0W_all Length-`N` pooled missing-outcome propensity
+#'   `P(Delta = 1 | A = a, X, D = 1)`, fit on internal rows and extrapolated onto
+#'   external rows (like `g1W_all`); default `1`. With missing outcomes the `Q` clever
+#'   covariate becomes `eta(s)/(g*pi)` and `Q` is targeted on the internal rows with
+#'   `Delta = 1`. `pi` is not targeted (it does not enter the tilt `eta(s)`).
 #'
 #' @return A list with components:
 #' \item{estimate}{TMLE point estimate of the externally tilted ATE.}
 #' \item{se}{EIF-based standard error, at convergence.}
 #' \item{CI}{Wald 95% confidence interval, `estimate +/- 1.96 * se`.}
 #' \item{iter}{Number of targeting iterations used (`<= max_iter`).}
+#' \item{converged}{`TRUE` if the stopping rule was met before `max_iter`.}
 #' \item{EIF}{Efficient influence function at convergence, evaluated at
 #'   each pooled observation.}
 #' \item{Q1W,Q0W}{Targeted pooled outcome regression at `A = 1` and `A = 0`.}
@@ -154,8 +176,14 @@ tmle_external_tilted_h <- function(D, A_int, Y_int, idx1,
                                     g1W_all, g0W_all = 1 - g1W_all,
                                     s1W, eta, eta_dot,
                                     sbounds = c(0.025, 0.975),
-                                    max_iter = 50, tol = 1e-6) {
+                                    Qbounds = c(1e-4, 1 - 1e-4),
+                                    max_iter = 50, tol = 1e-6,
+                                    Delta_int = as.integer(!is.na(Y_int)),
+                                    pi1W_all = rep(1, length(D)), pi0W_all = rep(1, length(D))) {
   N <- length(D)
+  obs_int <- which(Delta_int == 1)    # internal rows with an observed outcome
+  pi1W_int <- pi1W_all[idx1]                  # internal-only pi, for the EIF
+  pi0W_int <- pi0W_all[idx1]
   Q1 <- Q1W
   Q0 <- Q0W
   QA_int <- QAW_int
@@ -164,20 +192,26 @@ tmle_external_tilted_h <- function(D, A_int, Y_int, idx1,
   eta_s <- eta(s1)
   tau <- sum(eta_s[idx1] * (Q1[idx1] - Q0[idx1])) / sum(eta_s[idx1])
   EIF <- eif_external_tilted_h(D, A_int, Y_int, idx1, eta_s, eta_dot(s1),
-                                Q1, Q0, g1W_int, g0W_int, s1, tau)
+                                Q1, Q0, g1W_int, g0W_int, s1, tau,
+                                Delta_int, pi1W_int, pi0W_int)
 
   iter_used <- 0
+  converged <- FALSE
   for (k in seq_len(max_iter)) {
     iter_used <- k
 
     eta_s <- eta(s1)
-    H1_A1 <- eta_s / g1W_all
-    H1_A0 <- -eta_s / g0W_all
+    H1_A1 <- eta_s / (g1W_all * pi1W_all)     # clever covariate: g replaced by g * pi
+    H1_A0 <- -eta_s / (g0W_all * pi0W_all)
     H1_obs_int <- A_int * H1_A1[idx1] + (1 - A_int) * H1_A0[idx1]
-    eps1 <- fit_eps_h(Y_int, H1_obs_int, stats::qlogis(QA_int))
+    eps1 <- fit_eps_h(Y_int, H1_obs_int, stats::qlogis(QA_int), indices = obs_int)  # observed rows only
     QA_int <- stats::plogis(stats::qlogis(QA_int) + eps1 * H1_obs_int)
     Q1 <- stats::plogis(stats::qlogis(Q1) + eps1 * H1_A1)
     Q0 <- stats::plogis(stats::qlogis(Q0) + eps1 * H1_A0)
+    # Fix 1: keep Q finite on the logit scale
+    QA_int <- clamp_bounds(QA_int, Qbounds)
+    Q1 <- clamp_bounds(Q1, Qbounds)
+    Q0 <- clamp_bounds(Q0, Qbounds)
 
     H2 <- (eta_s + s1 * eta_dot(s1)) * (Q1 - Q0 - tau)
     eps2 <- fit_eps_h(D, H2, stats::qlogis(s1))
@@ -188,16 +222,23 @@ tmle_external_tilted_h <- function(D, A_int, Y_int, idx1,
     tau <- sum(eta_s[idx1] * (Q1[idx1] - Q0[idx1])) / sum(eta_s[idx1])
 
     EIF <- eif_external_tilted_h(D, A_int, Y_int, idx1, eta_s, eta_dot(s1),
-                                  Q1, Q0, g1W_int, g0W_int, s1, tau)
-    if (abs(mean(EIF)) < tol) break
-
-    if (abs(eps1) < tol && abs(eps2) < tol) break
+                                  Q1, Q0, g1W_int, g0W_int, s1, tau,
+                                Delta_int, pi1W_int, pi0W_int)
+    # Fix 3: same stopping rule as the internal TMLE
+    if (abs(mean(EIF)) < tol || (abs(eps1) < tol && abs(eps2) < tol)) {
+      converged <- TRUE
+      break
+    }
+  }
+  if (!converged) {
+    warning("tmle_external_tilted_h() did not converge in ", max_iter,
+            " iterations; consider a larger max_iter or tol.", call. = FALSE)
   }
 
   se <- sqrt(mean(EIF^2) / N)
   ci <- tau + c(-1, 1) * stats::qnorm(0.975) * se
 
-  list(estimate = tau, se = se, CI = ci, iter = iter_used, EIF = EIF,
+  list(estimate = tau, se = se, CI = ci, iter = iter_used, converged = converged, EIF = EIF,
        Q1W = Q1, Q0W = Q0, QAW_int = QA_int, s1W = s1)
 }
 
@@ -228,6 +269,9 @@ tmle_external_tilted_h <- function(D, A_int, Y_int, idx1,
 #' @param eta,eta_dot Tilting function and its derivative; see [tilt_spec_external()].
 #' @param g1W_all,g0W_all Length-`N` pooled fitted treatment propensity.
 #' @param sbounds,max_iter,tol Passed to [tmle_external_tilted_h()].
+#' @param pifit Optional fitted missing-outcome propensity with length-`N` components
+#'   `pi1W_all`, `pi0W_all` (fit on internal rows, extrapolated to all rows; built by
+#'   [estimate_tau_h_external_tilted()]). `NULL` (default) means no missing outcomes.
 #'
 #' @return A list with components:
 #' \item{h}{The resolved tilting weight vector (internal rows only), `eta(sfit$g1W[idx1])`.}
@@ -237,6 +281,7 @@ tmle_external_tilted_h <- function(D, A_int, Y_int, idx1,
 #' \item{TMLE,TMLE_se,TMLE_CI}{Iterative TMLE point estimate, EIF-based
 #'   standard error, and Wald 95% confidence interval; see [tmle_external_tilted_h()].}
 #' \item{TMLE_iter}{Number of targeting iterations the TMLE used.}
+#' \item{TMLE_converged}{Whether the TMLE met its stopping rule.}
 #' \item{Qfit,gfit,sfit}{The fitted-Q, fitted-g, and fitted-s objects passed in.}
 #' \item{tmle_fit}{The full [tmle_external_tilted_h()] result.}
 #'
@@ -270,11 +315,19 @@ estimate_tau_h_external_tilted_given_fits <- function(Y, A, D, idx1,
                                                         eta, eta_dot,
                                                         g1W_all, g0W_all = 1 - g1W_all,
                                                         sbounds = c(0.025, 0.975),
-                                                        max_iter = 50, tol = 1e-6) {
+                                                        max_iter = 50, tol = 1e-6,
+                                                        pifit = NULL) {
   h_vec_int <- eta(sfit$g1W[idx1])
 
+  # Missing outcomes: Delta = 1 where Y is observed; pi = P(Delta = 1 | A, X, D = 1).
+  # Without a pifit (no missing outcomes) pi = 1 and nothing changes.
+  Delta <- as.integer(!is.na(Y))
+  pi1W_all <- if (is.null(pifit)) rep(1, length(D)) else pifit$pi1W_all
+  pi0W_all <- if (is.null(pifit)) rep(1, length(D)) else pifit$pi0W_all
+
   mle_est <- mle_h(h_vec_int, Qfit$Q1W[idx1], Qfit$Q0W[idx1])
-  ipw_est <- ipw_h(Y, A, h_vec_int, gfit$g1W)
+  ipw_est <- ipw_h(Y, A, h_vec_int, gfit$g1W, Delta = Delta,
+                   pi1W = pi1W_all[idx1], pi0W = pi0W_all[idx1])
 
   tmle_out <- tmle_external_tilted_h(D, A, Y, idx1,
                                       Qfit$Q1W, Qfit$Q0W, Qfit$QAW,
@@ -282,14 +335,16 @@ estimate_tau_h_external_tilted_given_fits <- function(Y, A, D, idx1,
                                       g1W_all, g0W_all,
                                       sfit$g1W, eta, eta_dot,
                                       sbounds = sbounds,
-                                      max_iter = max_iter, tol = tol)
+                                      max_iter = max_iter, tol = tol,
+                                      Delta_int = Delta,
+                                      pi1W_all = pi1W_all, pi0W_all = pi0W_all)
 
   list(h = h_vec_int,
        MLE = mle_est,
        IPW = ipw_est,
        TMLE = tmle_out$estimate, TMLE_se = tmle_out$se, TMLE_CI = tmle_out$CI,
-       TMLE_iter = tmle_out$iter,
-       Qfit = Qfit, gfit = gfit, sfit = sfit, tmle_fit = tmle_out)
+       TMLE_iter = tmle_out$iter, TMLE_converged = tmle_out$converged,
+       Qfit = Qfit, gfit = gfit, sfit = sfit, pifit = pifit, tmle_fit = tmle_out)
 }
 
 #' Estimate an externally tilted ATE from raw data
@@ -329,7 +384,18 @@ estimate_tau_h_external_tilted_given_fits <- function(Y, A, D, idx1,
 #'   If `FALSE`, `sbounds` is forced to `c(0, 1)`.
 #' @param sbounds Selection-propensity truncation bounds.
 #' @param max_iter,tol Passed to [tmle_external_tilted_h()].
-#' @param ... Passed through to [fit_Q()]/[fit_g()] (e.g. `cvControl` for SL).
+#' @param pi_method,piform,pi_SL.library,pibounds Passed to [fit_pi()]; used only when
+#'   `Y` has missing values. `pi` is fit on the internal rows (covariates `Ws` and `A`).
+#' @param Q_args,g_args,s_args,pi_args Named lists of extra arguments passed ONLY to the
+#'   `Q`, `g`, `s` and `pi` fits respectively (e.g. `Q_args = list(cvControl = list(V = 5))`
+#'   for SL). Replaces the old shared `...`.
+#'
+#' @section Missing outcomes:
+#' `Y` (internal rows only) may contain `NA`, missing at random given `A` and `Ws`.
+#' `Q` is fit on the internal rows with an observed outcome and predicted for all `N` rows;
+#' `pi_a(X) = P(Delta = 1 | A = a, X, D = 1)` is fit on the internal rows with [fit_pi()]
+#' and extrapolated to the external rows; `g` is replaced by `g * pi` in the `Q` clever
+#' covariate and the EIF. `A`, `D`, `Ws` must be complete.
 #'
 #' @return See [estimate_tau_h_external_tilted_given_fits()].
 #'
@@ -359,28 +425,44 @@ estimate_tau_h_external_tilted <- function(Y, A, D, Ws, eta, eta_dot,
                                             s_method = c("glm", "SL"), sform = NULL, s_SL.library = c("SL.glm"),
                                             truncate_g = TRUE, gbounds = c(0.025, 0.975),
                                             truncate_s = TRUE, sbounds = c(0.025, 0.975),
-                                            max_iter = 50, tol = 1e-6, ...) {
+                                            max_iter = 50, tol = 1e-6,
+                                            pi_method = c("glm", "SL"), piform = NULL,
+                                            pi_SL.library = c("SL.glm"), pibounds = c(0.025, 1),
+                                            Q_args = list(), g_args = list(), s_args = list(),
+                                            pi_args = list()) {
   Q_method <- match.arg(Q_method)
+  pi_method <- match.arg(pi_method)
   g_method <- match.arg(g_method)
   s_method <- match.arg(s_method)
   if (!truncate_g) gbounds <- c(0, 1)
   if (!truncate_s) sbounds <- c(0, 1)
+  check_inputs_external(Y, A, D, Ws, Wg, gbounds, sbounds, allow_missing_Y = TRUE)
+  check_bounds(pibounds, "pibounds")
 
   Ws <- as.data.frame(Ws)
   idx1 <- which(D == 1)
   if (is.null(Wg)) Wg <- Ws[idx1, , drop = FALSE]
 
-  Qfit_int <- fit_Q(Y, A, Ws[idx1, , drop = FALSE], method = Q_method, Qform = Qform,
-                     SL.library = Q_SL.library, ...)
-  gfit <- fit_g(A, Wg, method = g_method, gform = gform, SL.library = g_SL.library,
-                gbounds = gbounds, ...)
-  sfit <- fit_g(D, Ws, method = s_method, gform = sform, SL.library = s_SL.library,
-                gbounds = sbounds, ...)
+  # Q fit on internal rows with an observed outcome (predicted for all internal rows)
+  Qfit_int <- fit_Q_observed(Y, A, Ws[idx1, , drop = FALSE], method = Q_method,
+                             Qform = Qform, SL.library = Q_SL.library, Q_args = Q_args)
+  gfit <- do.call(fit_g, c(list(A, Wg, method = g_method, gform = gform,
+                                SL.library = g_SL.library, gbounds = gbounds), g_args))
+  sfit <- do.call(fit_g, c(list(D, Ws, method = s_method, gform = sform,
+                                SL.library = s_SL.library, gbounds = sbounds), s_args))
 
   Qfit <- list(QAW = Qfit_int$QAW,
                Q1W = predict_Qhat(Qfit_int$fit, 1, Ws),
                Q0W = predict_Qhat(Qfit_int$fit, 0, Ws),
                fit = Qfit_int$fit, method = Qfit_int$method)
+  # pi fit on internal rows only (if some outcomes are missing), then extrapolated to all N rows
+  pifit <- fit_pi_if_missing(Y, A, Ws[idx1, , drop = FALSE], method = pi_method, piform = piform,
+                             SL.library = pi_SL.library, pibounds = pibounds, pi_args = pi_args)
+  if (!is.null(pifit)) {
+    pifit$pi1W_all <- clamp_bounds(predict_Qhat(pifit$fit, 1, Ws, Qbounds = c(0, 1)), pibounds)
+    pifit$pi0W_all <- clamp_bounds(predict_Qhat(pifit$fit, 0, Ws, Qbounds = c(0, 1)), pibounds)
+  }
+
   Wg_all <- Ws[, names(Wg), drop = FALSE]
   g1W_all <- pmin(pmax(predict_ghat(gfit$fit, Wg_all), gbounds[1]), gbounds[2])
 
@@ -388,5 +470,6 @@ estimate_tau_h_external_tilted <- function(Y, A, D, Ws, eta, eta_dot,
                                              eta, eta_dot,
                                              g1W_all = g1W_all,
                                              sbounds = sbounds,
-                                             max_iter = max_iter, tol = tol)
+                                             max_iter = max_iter, tol = tol,
+                                             pifit = pifit)
 }

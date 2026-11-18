@@ -11,7 +11,9 @@ estimate_tau_h_fixed_given_fits(
   Qfit,
   gfit,
   n_boot = 300,
-  boot_strata = NULL
+  boot_strata = NULL,
+  warn_fn_h = TRUE,
+  pifit = NULL
 )
 }
 \arguments{
@@ -29,6 +31,14 @@ estimate_tau_h_fixed_given_fits(
 
 \item{boot_strata}{Optional stratification vector for the bootstrap
 (defaults to \code{A}).}
+
+\item{warn_fn_h}{If \code{TRUE} (default), warn when \code{h} is a function of the
+fitted propensity score. The fixed-h EIF treats \code{h} as known, so its
+SE/CI ignore the extra \code{eta_dot} term and are not valid for such \code{h}
+(e.g. ATT/ATC/ATO); use \code{\link[=estimate_tau_h_internal_tilted]{estimate_tau_h_internal_tilted()}} for those.}
+
+\item{pifit}{Optional fitted missing-outcome propensity, as returned by \code{\link[=fit_pi]{fit_pi()}}.
+\code{NULL} (default) means no missing outcomes (\code{Y} has no \code{NA}).}
 }
 \value{
 A list with components:
