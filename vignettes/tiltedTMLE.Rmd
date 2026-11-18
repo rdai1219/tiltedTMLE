@@ -17,48 +17,64 @@ library(tiltedTMLE)
 
 ## Overview
 
-`tiltedTMLE` estimates tilted average treatment effect (ATE) estimands of
-the form
+`tiltedTMLE` estimates tilted average treatment effects (ATEs) of the form
 
-\deqn{\tau_h = \frac{E[h(X)(Q(X,1)-Q(X,0))]}{E[h(X)]}}
+$$
+\tau_h = \frac{E\left[h(X)\{Q(X,1) - Q(X,0)\}\right]}{E\left[h(X)\right]},
+$$
 
-for a tilting function `h(x)` that is either fixed and known, or itself a
-function of an estimated nuisance that must be targeted alongside the
-outcome regression. There are three entry points, one per setting:
+where $Q(x, a) = E(Y \mid X = x, A = a)$ and the tilting function $h(x)$
+determines the target population. The package covers three settings, each
+with its own entry point:
 
-- `estimate_tau_h_fixed()` -- `h(x)` is a fixed, precomputed weight (e.g.
-  `h(x) = 1` for the plain ATE), estimated with a single TMLE targeting
-  step.
-- `estimate_tau_h_internal_tilted()` -- `h(x) = eta(g(x))`, a known
-  function of the treatment propensity score, within one study
-  population (ATE/ATT/ATC/ATO). `g` is iteratively targeted.
-- `estimate_tau_h_external_tilted()` -- `h(x) = eta(s(x))`, a known
-  function of the selection propensity score between an internal trial
-  and an external covariate-only population (ATE-I/ATE-E/ATE-O). The
-  selection score `s` is iteratively targeted.
+| Setting | Tilting function | Entry point | Named estimands |
+|---|---|---|---|
+| Fixed | $h(x)$ known, supplied by the user | `estimate_tau_h_fixed()` | any user weight |
+| Internally tilted | $h(x) = \eta\{g(x)\}$, $g(x) = P(A = 1 \mid X = x)$ | `estimate_tau_h_internal_tilted()` | ATE, ATT, ATC, ATO |
+| Externally tilted | $h(x) = \eta\{s(x)\}$, $s(x) = P(D = 1 \mid X = x)$ | `estimate_tau_h_external_tilted()` | ATE-I, ATE-E, ATE-O |
 
-The full derivations, efficient influence functions, and algorithm
-pseudocode are in `TMLE_tilted_algorithms.pdf` at the package source
-root -- this vignette only covers how to call the three entry points.
+In the fixed setting a single TMLE targeting step is used. In the two tilted
+settings $h$ depends on an unknown propensity score, so that score is
+targeted together with the outcome regression in an iterative TMLE, and the
+standard error accounts for its estimation. In the external setting, $D = 1$
+marks an internal trial (with $X$, $A$, $Y$) and $D = 0$ an external
+population for which only covariates $X$ are available.
 
-## A simulated internal trial, plus external covariates
+The theory (identification, efficient influence functions and the TMLE
+algorithms) is in Fang, He and Dai, "Targeted Learning for Externally
+Controlled Trials and Beyond", and Fang, "Targeted Learning for Tilted
+Average Treatment Effects".
+
+## Simulated data
+
+We simulate an internal trial of size $n = 300$ and an external,
+covariate-only sample of size $m = 300$. The external population has a
+different distribution of `X1`, and the treatment effect varies with `X1`,
+so the internal and external estimands differ.
 
 ```{r sim-data}
 set.seed(42)
 n <- 300 # internal trial
 m <- 300 # external, covariate-only
 
-W1 <- rnorm(n + m)
-W2 <- rnorm(n + m)
+X1 <- c(rnorm(n, mean = 0.3), rnorm(m, mean = -0.3))
+X2 <- rnorm(n + m)
 D <- c(rep(1L, n), rep(0L, m)) # 1 = internal trial, 0 = external
-Ws <- data.frame(X1 = W1, X2 = W2)
+Ws <- data.frame(X1 = X1, X2 = X2) # pooled covariates (n + m rows)
+W <- Ws[D == 1, , drop = FALSE] # internal-only covariates (n rows)
 
-A <- rbinom(n, 1, plogis(0.3 * W1[1:n] - 0.2 * W2[1:n]))
-Y <- rbinom(n, 1, plogis(-0.3 + 0.5 * A + 0.3 * W1[1:n] - 0.2 * W2[1:n]))
-W <- Ws[1:n, , drop = FALSE] # internal-only covariates
+A <- rbinom(n, 1, plogis(0.3 * W$X1 - 0.2 * W$X2))
+Y <- rbinom(n, 1, plogis(-0.3 + (0.5 + 0.4 * W$X1) * A + 0.3 * W$X1 - 0.2 * W$X2))
 ```
 
+`Y` and `A` are always internal-only vectors of length $n$. `W` holds the
+internal covariates, while `D` and `Ws` cover all $n + m$ rows in the
+external setting.
+
 ## Fixed h: the plain ATE
+
+With `h = rep(1, n)` the estimand is the ATE. The fixed-h entry point also
+returns a target-step bootstrap (`n_boot` resamples).
 
 ```{r fixed-ate}
 out_ate <- estimate_tau_h_fixed(Y, A, W, h = rep(1, n), n_boot = 50)
@@ -66,41 +82,216 @@ out_ate$TMLE
 out_ate$TMLE_CI
 ```
 
-## Internally tilted: the ATT
+`h` can also be any non-negative weight vector you have computed in
+advance. If `h` is a function of the fitted propensity score (for example
+the ATT, `h = g`), `estimate_tau_h_fixed()` treats it as known and its
+standard error is not valid; the function warns about this. Use the
+internally tilted entry point for those estimands.
 
-`h(x) = eta(g(x)) = g(x)` tilts the ATE toward the treated population.
-`tilt_spec()` supplies `eta`/`eta_dot` for the four named internal
-estimands (`"ATE"`, `"ATT"`, `"ATC"`, `"ATO"`).
+## Internally tilted estimands
+
+`tilt_spec()` returns the tilting function `eta` and its derivative
+`eta_dot` for the four named internal estimands. For the ATT,
+$\eta(g) = g$:
 
 ```{r internal-att}
 spec_att <- tilt_spec("ATT")
 out_att <- estimate_tau_h_internal_tilted(Y, A, W, spec_att$eta, spec_att$eta_dot)
 out_att$TMLE
+out_att$TMLE_CI
 out_att$TMLE_iter
+out_att$TMLE_converged
 ```
 
-## Externally tilted: the overlap population (ATE-O)
+All four estimands at once, with the benchmark estimators alongside:
 
-`h(x) = eta(s(x)) = 1 - s(x)` tilts toward covariate overlap between the
-internal trial and the external population. This needs the full pooled
-data: `Y`/`A` observed only on the internal rows, `D` and `Ws` for all
-`n + m` rows. `tilt_spec_external()` supplies `eta`/`eta_dot` for the
-three named external estimands (`"ATE-I"`, `"ATE-E"`, `"ATE-O"`).
-
-```{r external-ateo}
-spec_o <- tilt_spec_external("ATE-O")
-out_ateo <- estimate_tau_h_external_tilted(Y, A, D, Ws, spec_o$eta, spec_o$eta_dot)
-out_ateo$TMLE
-out_ateo$TMLE_iter
+```{r internal-all}
+internal <- do.call(rbind, lapply(c("ATE", "ATT", "ATC", "ATO"), function(est) {
+  sp <- tilt_spec(est)
+  fit <- estimate_tau_h_internal_tilted(Y, A, W, sp$eta, sp$eta_dot)
+  data.frame(estimand = est, TMLE = fit$TMLE, SE = fit$TMLE_se,
+             lower = fit$TMLE_CI[1], upper = fit$TMLE_CI[2],
+             MLE = fit$MLE, IPW = fit$IPW, AIPW = fit$AIPW,
+             iterations = fit$TMLE_iter)
+}))
+knitr::kable(internal, digits = 3)
 ```
+
+## Externally tilted estimands
+
+`tilt_spec_external()` gives `eta`/`eta_dot` for the three external
+estimands: ATE-I ($\eta(s) = 1$, the internal population), ATE-E
+($\eta(s) = (1 - s)/s$, the external population) and ATE-O
+($\eta(s) = 1 - s$, the overlap population).
+
+```{r external-all}
+external <- do.call(rbind, lapply(c("ATE-I", "ATE-E", "ATE-O"), function(est) {
+  sp <- tilt_spec_external(est)
+  fit <- estimate_tau_h_external_tilted(Y, A, D, Ws, sp$eta, sp$eta_dot)
+  data.frame(estimand = est, TMLE = fit$TMLE, SE = fit$TMLE_se,
+             lower = fit$TMLE_CI[1], upper = fit$TMLE_CI[2],
+             iterations = fit$TMLE_iter, converged = fit$TMLE_converged)
+}))
+knitr::kable(external, digits = 3)
+```
+
+By default the treatment model uses the same covariates as the selection
+model. Pass `Wg` (internal rows only) to use a different set for $g$.
 
 ## Reading the output
 
-All three entry points return a list including `TMLE` (point estimate),
-`TMLE_se`/`TMLE_CI` (EIF-based Wald inference), plus un-targeted
-benchmark estimators (`MLE`, `IPW`, and `AIPW` where defined) and the
-underlying fitted-nuisance objects (`Qfit`, `gfit`, and `sfit` for the
-externally tilted case) for further inspection. See `?estimate_tau_h_fixed`,
-`?estimate_tau_h_internal_tilted`, and `?estimate_tau_h_external_tilted`
-for the full set of arguments (SuperLearner nuisance fitting, propensity
-truncation bounds, bootstrap options).
+Each entry point returns a list that includes:
+
+- `TMLE`, `TMLE_se`, `TMLE_CI`: the point estimate and the Wald interval
+  based on the efficient influence function (EIF).
+- `TMLE_iter`, `TMLE_converged` (tilted settings): the number of targeting
+  iterations and whether the stopping rule was met. A warning is given if
+  `max_iter` is reached first.
+- `MLE`, `IPW` and, where defined, `AIPW`: untargeted benchmark estimators.
+- `h`: the tilting weights actually used.
+- `Qfit`, `gfit` (and `sfit` in the external setting): the fitted nuisance
+  models, for diagnostics.
+
+Propensity scores are truncated to `gbounds` (and `sbounds` for the
+selection score), both `c(0.025, 0.975)` by default. Outcome predictions are
+kept inside `[1e-4, 1 - 1e-4]` throughout the targeting.
+
+## Bootstrap inference for the tilted estimators
+
+The EIF-based interval can be too narrow at moderate sample sizes,
+especially for estimands with large weights such as the ATE-E. The
+full-refit bootstrap re-fits all nuisance models and re-runs the iterative
+TMLE on every resample (stratified by treatment arm by default).
+
+```{r bootstrap-internal}
+set.seed(1)
+b_att <- bootstrap_tau_h_internal_tilted(Y, A, W, spec_att$eta, spec_att$eta_dot,
+                                         n_boot = 50)
+b_att$estimate
+b_att$se
+b_att$CI_percentile
+c(failed = b_att$n_failed, nonconverged = b_att$n_nonconverged)
+```
+
+```{r bootstrap-external}
+spec_e <- tilt_spec_external("ATE-E")
+set.seed(2)
+b_ate_e <- bootstrap_tau_h_external_tilted(Y, A, D, Ws, spec_e$eta, spec_e$eta_dot,
+                                           n_boot = 50)
+b_ate_e$se
+b_ate_e$CI_normal
+b_ate_e$CI_percentile
+```
+
+We use `n_boot = 50` here to keep the vignette fast; use at least 200 (the
+default) in practice. In our simulations the percentile bootstrap interval
+gave noticeably better coverage than the EIF interval for the ATE-E. A
+larger lower truncation bound for the selection score (for example
+`sbounds = c(0.05, 0.95)`) also helped, at the cost of changing the
+effective target population slightly. Any extra arguments to the bootstrap
+functions are passed on to the matching `estimate_tau_h_*()` function.
+
+## Flexible nuisance models with SuperLearner
+
+Each nuisance model can be fit with `glm` (the default) or with
+`SuperLearner` (`"SL"`). Extra arguments go to the intended fit only,
+through `Q_args`, `g_args`, `s_args` and `pi_args`.
+
+```{r superlearner, eval = requireNamespace("SuperLearner", quietly = TRUE)}
+out_sl <- estimate_tau_h_internal_tilted(
+  Y, A, W, spec_att$eta, spec_att$eta_dot,
+  Q_method = "SL", Q_SL.library = c("SL.glm", "SL.mean"),
+  g_method = "SL", g_SL.library = c("SL.glm", "SL.mean"),
+  Q_args = list(cvControl = list(V = 5)),
+  g_args = list(cvControl = list(V = 5))
+)
+out_sl$TMLE
+out_sl$TMLE_CI
+```
+
+`SuperLearner` does not need to be attached with `library()`.
+
+## Missing outcomes
+
+`Y` may contain `NA` in all three entry points. Outcomes are assumed missing
+at random given `A` and the covariates. The package fits the probability of
+observing the outcome, `P(Delta = 1 | A, W)` (see `fit_pi()`), fits the
+outcome model on the observed rows and adjusts the TMLE for the missingness.
+The missingness model is controlled by `pi_method`, `piform`,
+`pi_SL.library` and `pibounds`.
+
+```{r missing-outcomes}
+Y_miss <- Y
+set.seed(3)
+observed <- rbinom(n, 1, plogis(1 + 0.8 * W$X1 - 0.5 * A))
+Y_miss[observed == 0] <- NA
+mean(is.na(Y_miss))
+
+out_miss <- estimate_tau_h_internal_tilted(Y_miss, A, W, spec_att$eta, spec_att$eta_dot)
+out_miss$TMLE
+out_miss$TMLE_CI
+```
+
+In the external setting `Y` is still the internal-only vector, now with
+`NA`s. Missing treatments are not supported.
+
+## Missing covariates
+
+`NA` in `A`, `D`, `W`, `Ws` or `Wg` is an error. For missing covariates,
+`add_missing_indicators()` applies the indicator method: missing continuous
+values are replaced by the mean, missing binary values by the most common
+value, and a `<name>_miss` 0/1 column is added for each affected covariate.
+
+```{r missing-covariates}
+W_na <- W
+W_na$X2[sample(n, 30)] <- NA
+W_aug <- add_missing_indicators(W_na)
+head(W_aug)
+
+out_mc <- estimate_tau_h_internal_tilted(Y, A, W_aug, spec_att$eta, spec_att$eta_dot)
+out_mc$TMLE
+```
+
+In the external setting, apply `add_missing_indicators()` to the pooled
+`Ws` so that internal and external rows are handled in the same way.
+
+## Custom tilting functions
+
+Any smooth tilting function can be used by supplying `eta` and its
+derivative `eta_dot` directly. For example, entropy weights tilt towards
+units with propensity scores near 0.5, like the overlap weights:
+
+$$
+\eta(g) = -g \log g - (1 - g)\log(1 - g), \qquad \eta'(g) = \log\{(1 - g)/g\}.
+$$
+
+```{r custom-tilt}
+eta_ent <- function(g) -g * log(g) - (1 - g) * log(1 - g)
+eta_ent_dot <- function(g) log((1 - g) / g)
+
+out_ent <- estimate_tau_h_internal_tilted(Y, A, W, eta_ent, eta_ent_dot)
+out_ent$TMLE
+out_ent$TMLE_CI
+```
+
+The same applies to the externally tilted entry point with a function of
+$s$.
+
+## Shiny app
+
+For users who prefer a point-and-click interface, `run_app()` opens an
+interactive app:
+
+```{r app, eval = FALSE}
+tiltedTMLE::run_app()
+```
+
+The app lets you upload a CSV or Excel file, map the columns, choose the
+setting, estimand (including a typed custom tilting function), nuisance
+learners, truncation and bootstrap options, and run the analysis in a
+background R process. It shows the estimates with overlap and weight
+diagnostics, and offers downloads of the results (CSV), plots (PNG), an R
+script that reproduces the analysis and an HTML report. Data stay in memory
+only. The app needs the suggested packages `shiny`, `bslib`, `readr`,
+`readxl`, `future`, `promises` and `ggplot2` (and `rmarkdown` for the
+report).
