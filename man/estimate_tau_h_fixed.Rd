@@ -24,6 +24,7 @@ estimate_tau_h_fixed(
   piform = NULL,
   pi_SL.library = c("SL.glm"),
   pibounds = c(0.025, 1),
+  cv_folds = 1,
   Ybounds = NULL,
   Q_args = list(),
   g_args = list(),
@@ -57,6 +58,13 @@ missing outcome. A continuous outcome is rescaled internally; see \code{Ybounds}
 \item{pi_method, piform, pi_SL.library, pibounds}{Passed to \code{\link[=fit_pi]{fit_pi()}} as \code{method},
 \code{piform}, \code{SL.library}, \code{pibounds}. Used only when \code{Y} has missing values.}
 
+\item{cv_folds}{Number of cross-fitting folds. \code{1} (default) fits the
+nuisance models on all the data. \code{V > 1} fits each nuisance model on
+\code{V - 1} folds and predicts the held-out fold, so the targeting step and
+standard error use out-of-fold predictions; recommended with flexible
+SuperLearner libraries. Fold assignment is random, so use \code{\link[=set.seed]{set.seed()}}
+for reproducible results.}
+
 \item{Ybounds}{Optional bounds \code{c(a, b)} for a continuous outcome. \code{Y} is
 rescaled to \code{(Y - a) / (b - a)} before fitting and the results are mapped
 back. \code{NULL} (default) uses \code{c(0, 1)} for a binary outcome and the observed
@@ -78,6 +86,20 @@ how \code{Q}/\code{g} are fit, this fits \code{Q} and \code{g}, builds \code{h},
 MLE/IPW/AIPW/TMLE point estimates plus TMLE's EIF-Wald and
 target-step bootstrap inference.
 }
+\section{Cross-fitting}{
+
+With \code{cv_folds = V > 1}, rows are split into \code{V} folds (stratified by
+treatment arm, and in the external setting also by internal/external
+membership). Every nuisance model is fit on the other \code{V - 1} folds and
+predicts the held-out fold; the TMLE is then computed from these
+out-of-fold predictions, pooled over all rows. This protects the
+EIF-based standard error and confidence interval against overfitting by
+flexible learners (Zheng and van der Laan, 2011; Chernozhukov et al.,
+2018). The returned \code{folds} gives the fold of each row, and the \code{fit}
+element of each fitted-nuisance object becomes a list of the \code{V} per-fold
+models. Cross-fitting multiplies the nuisance-fitting time by about \code{V}.
+}
+
 \section{Continuous outcomes}{
 
 \code{Y} may be continuous. Following Fang, He, and Dai (2026, Sec. 3.3.2), \code{Y} is

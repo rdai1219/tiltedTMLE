@@ -277,6 +277,12 @@ estimate_tau_h_internal_tilted_given_fits <- function(Y, A, Qfit, gfit, eta, eta
 #' @param max_iter,tol Passed to [tmle_tilted_h()].
 #' @param pi_method,piform,pi_SL.library,pibounds Passed to [fit_pi()]; used only
 #'   when `Y` has missing values.
+#' @param cv_folds Number of cross-fitting folds. `1` (default) fits the
+#'   nuisance models on all the data. `V > 1` fits each nuisance model on
+#'   `V - 1` folds and predicts the held-out fold, so the targeting step and
+#'   standard error use out-of-fold predictions; recommended with flexible
+#'   SuperLearner libraries. Fold assignment is random, so use [set.seed()]
+#'   for reproducible results.
 #' @param Ybounds Optional bounds `c(a, b)` for a continuous outcome. `Y` is
 #'   rescaled to `(Y - a) / (b - a)` before fitting and the results are mapped
 #'   back. `NULL` (default) uses `c(0, 1)` for a binary outcome and the observed
@@ -286,6 +292,18 @@ estimate_tau_h_internal_tilted_given_fits <- function(Y, A, Qfit, gfit, eta, eta
 #'   [fit_g()] / [fit_pi()] (e.g. `Q_args = list(cvControl = list(V = 5))` for SL).
 #'   Replaces the old shared `...`, so settings meant for one fit can no longer leak
 #'   into another.
+#'
+#' @section Cross-fitting:
+#' With `cv_folds = V > 1`, rows are split into `V` folds (stratified by
+#' treatment arm, and in the external setting also by internal/external
+#' membership). Every nuisance model is fit on the other `V - 1` folds and
+#' predicts the held-out fold; the TMLE is then computed from these
+#' out-of-fold predictions, pooled over all rows. This protects the
+#' EIF-based standard error and confidence interval against overfitting by
+#' flexible learners (Zheng and van der Laan, 2011; Chernozhukov et al.,
+#' 2018). The returned `folds` gives the fold of each row, and the `fit`
+#' element of each fitted-nuisance object becomes a list of the `V` per-fold
+#' models. Cross-fitting multiplies the nuisance-fitting time by about `V`.
 #'
 #' @section Continuous outcomes:
 #' `Y` may be continuous. Following Fang, He, and Dai (2026, Sec. 3.3.2), `Y` is
@@ -329,7 +347,7 @@ estimate_tau_h_internal_tilted <- function(Y, A, W, eta, eta_dot,
                                             max_iter = 50, tol = 1e-6,
                                             pi_method = c("glm", "SL"), piform = NULL,
                                             pi_SL.library = c("SL.glm"), pibounds = c(0.025, 1),
-                                            Ybounds = NULL,
+                                            cv_folds = 1, Ybounds = NULL,
                                             Q_args = list(), g_args = list(), pi_args = list()) {
   Q_method <- match.arg(Q_method)
   g_method <- match.arg(g_method)
@@ -337,6 +355,7 @@ estimate_tau_h_internal_tilted <- function(Y, A, W, eta, eta_dot,
   if (!truncate) gbounds <- c(0, 1)
   check_inputs(Y, A, W, gbounds, allow_missing_Y = TRUE)
   check_bounds(pibounds, "pibounds")
+  check_cv_folds(cv_folds, length(Y))
   W <- as.data.frame(W)
 
   # Continuous outcome: work with Y rescaled to [0, 1]; results are mapped back
@@ -344,17 +363,31 @@ estimate_tau_h_internal_tilted <- function(Y, A, W, eta, eta_dot,
   Ybounds <- outcome_bounds(Y, Ybounds)
   Y <- rescale_outcome(Y, Ybounds)
 
-  # Q fit on observed outcomes, predicted for all rows; pi fit only if Y has NAs
-  Qfit <- fit_Q_observed(Y, A, W, method = Q_method, Qform = Qform,
-                         SL.library = Q_SL.library, Q_args = Q_args)
-  pifit <- fit_pi_if_missing(Y, A, W, method = pi_method, piform = piform,
-                             SL.library = pi_SL.library, pibounds = pibounds, pi_args = pi_args)
-  gfit <- do.call(fit_g, c(list(A, W, method = g_method, gform = gform,
-                                SL.library = g_SL.library, gbounds = gbounds), g_args))
+  if (cv_folds > 1) {
+    # Cross-fitting: out-of-fold predictions of Q, g (and pi); see cross-fitting.R
+    folds <- make_folds(A, cv_folds)
+    nuis <- crossfit_nuisance_internal(Y, A, W, folds,
+                                       Q_method, Qform, Q_SL.library, Q_args,
+                                       g_method, gform, g_SL.library, gbounds, g_args,
+                                       pi_method, piform, pi_SL.library, pibounds, pi_args)
+    Qfit <- nuis$Qfit
+    gfit <- nuis$gfit
+    pifit <- nuis$pifit
+  } else {
+    folds <- NULL
+    # Q fit on observed outcomes, predicted for all rows; pi fit only if Y has NAs
+    Qfit <- fit_Q_observed(Y, A, W, method = Q_method, Qform = Qform,
+                           SL.library = Q_SL.library, Q_args = Q_args)
+    pifit <- fit_pi_if_missing(Y, A, W, method = pi_method, piform = piform,
+                               SL.library = pi_SL.library, pibounds = pibounds, pi_args = pi_args)
+    gfit <- do.call(fit_g, c(list(A, W, method = g_method, gform = gform,
+                                  SL.library = g_SL.library, gbounds = gbounds), g_args))
+  }
 
   out <- estimate_tau_h_internal_tilted_given_fits(Y, A, Qfit, gfit, eta, eta_dot,
                                                    gbounds = gbounds,
                                                    max_iter = max_iter, tol = tol,
                                                    pifit = pifit)
+  out["folds"] <- list(folds)
   unscale_results(out, Ybounds)
 }

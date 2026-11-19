@@ -247,6 +247,36 @@ out_sl$TMLE_CI
 
 `SuperLearner` does not need to be attached with `library()`.
 
+## Cross-fitting
+
+By default the nuisance models are fit on all the data, and the same data
+are then used for the targeting step and the EIF-based standard error. With
+flexible learners (random forests, boosting, ...) the fits can partly
+memorise the data, so the standard error is too small and the confidence
+interval too narrow. Cross-fitting avoids this: with `cv_folds = V`, the
+rows are split into `V` folds, every nuisance model is fit on the other
+`V - 1` folds and predicts the held-out fold, and the TMLE uses these
+out-of-fold predictions (Zheng and van der Laan, 2011; Chernozhukov et al.,
+2018). Folds are stratified by treatment arm (and, in the external setting,
+by internal/external membership).
+
+```{r cross-fitting}
+set.seed(5)
+out_cv <- estimate_tau_h_internal_tilted(Y, A, W, spec_att$eta, spec_att$eta_dot,
+                                         cv_folds = 5)
+out_cv$TMLE
+out_cv$TMLE_CI
+table(fold = out_cv$folds, arm = A)
+```
+
+The same argument works for the fixed-h and externally tilted entry points,
+and can be passed to the bootstrap functions. With `glm` models, as here,
+cross-fitting changes little; it matters with flexible SuperLearner
+libraries, for example
+`Q_SL.library = c("SL.glm", "SL.ranger", "SL.xgboost")`. Fold assignment is
+random, so use `set.seed()` for reproducible results. Cross-fitting
+multiplies the nuisance-fitting time by about `V`.
+
 ## Missing outcomes
 
 `Y` may contain `NA` in all three entry points. Outcomes are assumed missing

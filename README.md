@@ -93,6 +93,21 @@ out_c$Ybounds
 # estimate_tau_h_internal_tilted(score, A, W, spec_att$eta, spec_att$eta_dot, Ybounds = c(0, 100))
 ```
 
+## Cross-fitting with flexible learners
+
+With flexible SuperLearner libraries, set `cv_folds` (e.g. 5): each nuisance model is fit
+on the other folds and predicts the held-out fold, which keeps the standard errors and
+confidence intervals valid. Fold assignment is random, so set a seed.
+
+```r
+set.seed(2026)
+out_cv <- estimate_tau_h_internal_tilted(
+  Y, A, W, spec_att$eta, spec_att$eta_dot,
+  Q_method = "SL", Q_SL.library = c("SL.glm", "SL.ranger", "SL.xgboost"),
+  g_method = "SL", g_SL.library = c("SL.glm", "SL.ranger", "SL.xgboost"),
+  cv_folds = 5)
+```
+
 ## Bootstrap inference for the tilted estimators
 
 The EIF-based Wald interval can be too narrow at moderate sample sizes. For the

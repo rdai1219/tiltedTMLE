@@ -1,3 +1,18 @@
+# tiltedTMLE 0.3.0
+
+## New features
+
+* Cross-fitting. New argument `cv_folds` in `estimate_tau_h_fixed()`,
+  `estimate_tau_h_internal_tilted()` and `estimate_tau_h_external_tilted()` (and, through
+  `...`, the full-refit bootstrap functions). With `cv_folds = V > 1` the rows are split into
+  `V` folds (stratified by treatment arm and, in the external setting, by internal/external
+  membership); every nuisance model (`Q`, `g`, `s`, `pi`) is fit on `V - 1` folds and predicts
+  the held-out fold, and the TMLE and its EIF-based inference use these out-of-fold
+  predictions. This keeps the standard errors valid with flexible SuperLearner libraries.
+  The default `cv_folds = 1` gives the same results as before. Results gain `folds`
+  (the fold of each row, or `NULL`), and with cross-fitting the `fit` element of each
+  fitted-nuisance object is the list of per-fold models.
+
 # tiltedTMLE 0.2.0
 
 ## New features

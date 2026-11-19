@@ -31,7 +31,8 @@ bootstrap_tau_h_internal_tilted(
 data and reused on every resample, so all resamples share the same scale.}
 
 \item{...}{Further arguments passed to \code{\link[=estimate_tau_h_internal_tilted]{estimate_tau_h_internal_tilted()}}
-(e.g. \code{Q_method}, \code{gbounds}, \code{Q_args}).}
+(e.g. \code{Q_method}, \code{gbounds}, \code{Q_args}, \code{cv_folds}). With \code{cv_folds > 1}
+new folds are drawn on every resample.}
 }
 \value{
 A list with components:

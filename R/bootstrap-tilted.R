@@ -42,7 +42,8 @@ boot_summary <- function(est, point, conf_level) {
 #'   [estimate_tau_h_internal_tilted()]. They are resolved once from the full
 #'   data and reused on every resample, so all resamples share the same scale.
 #' @param ... Further arguments passed to [estimate_tau_h_internal_tilted()]
-#'   (e.g. `Q_method`, `gbounds`, `Q_args`).
+#'   (e.g. `Q_method`, `gbounds`, `Q_args`, `cv_folds`). With `cv_folds > 1`
+#'   new folds are drawn on every resample.
 #'
 #' @return A list with components:
 #' \item{estimate}{TMLE point estimate on the original data.}

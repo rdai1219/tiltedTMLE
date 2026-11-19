@@ -388,6 +388,12 @@ estimate_tau_h_external_tilted_given_fits <- function(Y, A, D, idx1,
 #' @param max_iter,tol Passed to [tmle_external_tilted_h()].
 #' @param pi_method,piform,pi_SL.library,pibounds Passed to [fit_pi()]; used only when
 #'   `Y` has missing values. `pi` is fit on the internal rows (covariates `Ws` and `A`).
+#' @param cv_folds Number of cross-fitting folds. `1` (default) fits the
+#'   nuisance models on all the data. `V > 1` fits each nuisance model on
+#'   `V - 1` folds and predicts the held-out fold, so the targeting step and
+#'   standard error use out-of-fold predictions; recommended with flexible
+#'   SuperLearner libraries. Fold assignment is random, so use [set.seed()]
+#'   for reproducible results.
 #' @param Ybounds Optional bounds `c(a, b)` for a continuous outcome. `Y` is
 #'   rescaled to `(Y - a) / (b - a)` before fitting and the results are mapped
 #'   back. `NULL` (default) uses `c(0, 1)` for a binary outcome and the observed
@@ -396,6 +402,18 @@ estimate_tau_h_external_tilted_given_fits <- function(Y, A, D, idx1,
 #' @param Q_args,g_args,s_args,pi_args Named lists of extra arguments passed ONLY to the
 #'   `Q`, `g`, `s` and `pi` fits respectively (e.g. `Q_args = list(cvControl = list(V = 5))`
 #'   for SL). Replaces the old shared `...`.
+#'
+#' @section Cross-fitting:
+#' With `cv_folds = V > 1`, rows are split into `V` folds (stratified by
+#' treatment arm, and in the external setting also by internal/external
+#' membership). Every nuisance model is fit on the other `V - 1` folds and
+#' predicts the held-out fold; the TMLE is then computed from these
+#' out-of-fold predictions, pooled over all rows. This protects the
+#' EIF-based standard error and confidence interval against overfitting by
+#' flexible learners (Zheng and van der Laan, 2011; Chernozhukov et al.,
+#' 2018). The returned `folds` gives the fold of each row, and the `fit`
+#' element of each fitted-nuisance object becomes a list of the `V` per-fold
+#' models. Cross-fitting multiplies the nuisance-fitting time by about `V`.
 #'
 #' @section Continuous outcomes:
 #' `Y` may be continuous. Following Fang, He, and Dai (2026, Sec. 3.3.2), `Y` is
@@ -444,7 +462,7 @@ estimate_tau_h_external_tilted <- function(Y, A, D, Ws, eta, eta_dot,
                                             max_iter = 50, tol = 1e-6,
                                             pi_method = c("glm", "SL"), piform = NULL,
                                             pi_SL.library = c("SL.glm"), pibounds = c(0.025, 1),
-                                            Ybounds = NULL,
+                                            cv_folds = 1, Ybounds = NULL,
                                             Q_args = list(), g_args = list(), s_args = list(),
                                             pi_args = list()) {
   Q_method <- match.arg(Q_method)
@@ -455,6 +473,7 @@ estimate_tau_h_external_tilted <- function(Y, A, D, Ws, eta, eta_dot,
   if (!truncate_s) sbounds <- c(0, 1)
   check_inputs_external(Y, A, D, Ws, Wg, gbounds, sbounds, allow_missing_Y = TRUE)
   check_bounds(pibounds, "pibounds")
+  check_cv_folds(cv_folds, length(D))
 
   # Continuous outcome: work with Y rescaled to [0, 1]; results are mapped back
   # at the end (a binary outcome has Ybounds = c(0, 1) and is unchanged).
@@ -465,28 +484,48 @@ estimate_tau_h_external_tilted <- function(Y, A, D, Ws, eta, eta_dot,
   idx1 <- which(D == 1)
   if (is.null(Wg)) Wg <- Ws[idx1, , drop = FALSE]
 
-  # Q fit on internal rows with an observed outcome (predicted for all internal rows)
-  Qfit_int <- fit_Q_observed(Y, A, Ws[idx1, , drop = FALSE], method = Q_method,
-                             Qform = Qform, SL.library = Q_SL.library, Q_args = Q_args)
-  gfit <- do.call(fit_g, c(list(A, Wg, method = g_method, gform = gform,
-                                SL.library = g_SL.library, gbounds = gbounds), g_args))
-  sfit <- do.call(fit_g, c(list(D, Ws, method = s_method, gform = sform,
-                                SL.library = s_SL.library, gbounds = sbounds), s_args))
+  if (cv_folds > 1) {
+    # Cross-fitting: out-of-fold predictions of Q, g, s (and pi); see cross-fitting.R.
+    # Folds are over all pooled rows, stratified by treatment arm (internal rows)
+    # and by internal/external membership.
+    strata <- rep(2L, length(D))
+    strata[idx1] <- A
+    folds <- make_folds(strata, cv_folds)
+    nuis <- crossfit_nuisance_external(Y, A, D, Ws, Wg, folds,
+                                       Q_method, Qform, Q_SL.library, Q_args,
+                                       g_method, gform, g_SL.library, gbounds, g_args,
+                                       s_method, sform, s_SL.library, sbounds, s_args,
+                                       pi_method, piform, pi_SL.library, pibounds, pi_args)
+    Qfit <- nuis$Qfit
+    gfit <- nuis$gfit
+    sfit <- nuis$sfit
+    pifit <- nuis$pifit
+    g1W_all <- nuis$g1W_all
+  } else {
+    folds <- NULL
+    # Q fit on internal rows with an observed outcome (predicted for all internal rows)
+    Qfit_int <- fit_Q_observed(Y, A, Ws[idx1, , drop = FALSE], method = Q_method,
+                               Qform = Qform, SL.library = Q_SL.library, Q_args = Q_args)
+    gfit <- do.call(fit_g, c(list(A, Wg, method = g_method, gform = gform,
+                                  SL.library = g_SL.library, gbounds = gbounds), g_args))
+    sfit <- do.call(fit_g, c(list(D, Ws, method = s_method, gform = sform,
+                                  SL.library = s_SL.library, gbounds = sbounds), s_args))
 
-  Qfit <- list(QAW = Qfit_int$QAW,
-               Q1W = predict_Qhat(Qfit_int$fit, 1, Ws),
-               Q0W = predict_Qhat(Qfit_int$fit, 0, Ws),
-               fit = Qfit_int$fit, method = Qfit_int$method)
-  # pi fit on internal rows only (if some outcomes are missing), then extrapolated to all N rows
-  pifit <- fit_pi_if_missing(Y, A, Ws[idx1, , drop = FALSE], method = pi_method, piform = piform,
-                             SL.library = pi_SL.library, pibounds = pibounds, pi_args = pi_args)
-  if (!is.null(pifit)) {
-    pifit$pi1W_all <- clamp_bounds(predict_Qhat(pifit$fit, 1, Ws, Qbounds = c(0, 1)), pibounds)
-    pifit$pi0W_all <- clamp_bounds(predict_Qhat(pifit$fit, 0, Ws, Qbounds = c(0, 1)), pibounds)
+    Qfit <- list(QAW = Qfit_int$QAW,
+                 Q1W = predict_Qhat(Qfit_int$fit, 1, Ws),
+                 Q0W = predict_Qhat(Qfit_int$fit, 0, Ws),
+                 fit = Qfit_int$fit, method = Qfit_int$method)
+    # pi fit on internal rows only (if some outcomes are missing), then extrapolated to all N rows
+    pifit <- fit_pi_if_missing(Y, A, Ws[idx1, , drop = FALSE], method = pi_method, piform = piform,
+                               SL.library = pi_SL.library, pibounds = pibounds, pi_args = pi_args)
+    if (!is.null(pifit)) {
+      pifit$pi1W_all <- clamp_bounds(predict_Qhat(pifit$fit, 1, Ws, Qbounds = c(0, 1)), pibounds)
+      pifit$pi0W_all <- clamp_bounds(predict_Qhat(pifit$fit, 0, Ws, Qbounds = c(0, 1)), pibounds)
+    }
+
+    Wg_all <- Ws[, names(Wg), drop = FALSE]
+    g1W_all <- pmin(pmax(predict_ghat(gfit$fit, Wg_all), gbounds[1]), gbounds[2])
   }
-
-  Wg_all <- Ws[, names(Wg), drop = FALSE]
-  g1W_all <- pmin(pmax(predict_ghat(gfit$fit, Wg_all), gbounds[1]), gbounds[2])
 
   out <- estimate_tau_h_external_tilted_given_fits(Y, A, D, idx1, Qfit, gfit, sfit,
                                                    eta, eta_dot,
@@ -494,5 +533,6 @@ estimate_tau_h_external_tilted <- function(Y, A, D, Ws, eta, eta_dot,
                                                    sbounds = sbounds,
                                                    max_iter = max_iter, tol = tol,
                                                    pifit = pifit)
+  out["folds"] <- list(folds)
   unscale_results(out, Ybounds)
 }
