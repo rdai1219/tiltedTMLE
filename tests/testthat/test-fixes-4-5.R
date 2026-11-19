@@ -26,12 +26,13 @@ test_that("warn_fn_h = FALSE silences the warning, and a numeric h never warns",
 
 ## ---- Item 5: input validation ----------------------------------------------
 
-test_that("non-binary or missing Y/A are rejected by all entry points", {
+test_that("non-numeric/infinite Y and missing A are rejected by all entry points", {
   set.seed(3)
   d <- sim_internal_dgp(100)
   spec <- tilt_spec("ATT")
 
-  Y_bad <- d$Y; Y_bad[1] <- 2
+  ## Y may be continuous since 0.2.0, so a value of 2 is now valid; Inf is not
+  Y_bad <- d$Y; Y_bad[1] <- Inf
   A_na  <- d$A; A_na[1] <- NA
 
   expect_error(estimate_tau_h_fixed(Y_bad, d$A, d$W, h = rep(1, 100)), "`Y` must be")

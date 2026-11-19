@@ -7,9 +7,12 @@
 fit_eps_h(Y, H, logitQAW, indices = seq_along(Y))
 }
 \arguments{
-\item{Y}{Binary (\code{0}/\code{1}) response vector (on the subset of rows the
-fluctuation is fit on) -- the outcome \code{Y} when targeting \code{Q}, or a
-selection/treatment indicator (\code{D}/\code{A}) when targeting \code{g}/\code{s}.}
+\item{Y}{Response vector with values in \verb{[0, 1]} -- the outcome \code{Y}
+(binary, or continuous rescaled to \verb{[0, 1]}) when targeting \code{Q}, or a
+selection/treatment indicator (\code{D}/\code{A}) when targeting \code{g}/\code{s}. The
+fluctuation is fit by quasi-binomial regression, which gives the usual
+logistic-regression estimate for binary \code{Y} and remains valid for
+continuous \code{Y} in \verb{[0, 1]}.}
 
 \item{H}{The clever covariate, same length as \code{Y}.}
 

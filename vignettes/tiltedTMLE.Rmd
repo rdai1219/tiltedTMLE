@@ -38,7 +38,8 @@ settings $h$ depends on an unknown propensity score, so that score is
 targeted together with the outcome regression in an iterative TMLE, and the
 standard error accounts for its estimation. In the external setting, $D = 1$
 marks an internal trial (with $X$, $A$, $Y$) and $D = 0$ an external
-population for which only covariates $X$ are available.
+population for which only covariates $X$ are available. The outcome $Y$ can be
+binary or continuous.
 
 The theory (identification, efficient influence functions and the TMLE
 algorithms) is in Fang, He and Dai, "Targeted Learning for Externally
@@ -151,10 +152,45 @@ Each entry point returns a list that includes:
 - `h`: the tilting weights actually used.
 - `Qfit`, `gfit` (and `sfit` in the external setting): the fitted nuisance
   models, for diagnostics.
+- `Ybounds`: the bounds used to rescale the outcome (`c(0, 1)` for a binary
+  outcome; see [Continuous outcomes](#continuous-outcomes)).
 
 Propensity scores are truncated to `gbounds` (and `sbounds` for the
 selection score), both `c(0.025, 0.975)` by default. Outcome predictions are
 kept inside `[1e-4, 1 - 1e-4]` throughout the targeting.
+
+## Continuous outcomes
+
+The outcome can also be continuous. Following Fang, He and Dai (Sec. 3.3.2),
+`Y` is rescaled to $[0, 1]$ as $Y^* = (Y - a)/(b - a)$, the TMLE is computed
+for $Y^*$, and the estimate, standard error and confidence limits are
+multiplied by $b - a$, so they are reported on the original scale. By
+default $[a, b]$ is the observed range of `Y`; known limits can be given
+with `Ybounds`. Binary outcomes are not rescaled.
+
+Here the conditional treatment effect is $1.5 + 0.5\,X_1$, so the tilted
+effects differ between estimands and populations:
+
+```{r continuous}
+set.seed(4)
+Y_cont <- 2 + (1.5 + 0.5 * W$X1) * A + W$X1 - 0.5 * W$X2 + rnorm(n)
+
+out_c <- estimate_tau_h_internal_tilted(Y_cont, A, W, spec_att$eta, spec_att$eta_dot)
+out_c$TMLE
+out_c$TMLE_CI
+out_c$Ybounds
+
+spec_o <- tilt_spec_external("ATE-O")
+out_c_ext <- estimate_tau_h_external_tilted(Y_cont, A, D, Ws, spec_o$eta, spec_o$eta_dot)
+out_c_ext$TMLE
+out_c_ext$TMLE_CI
+```
+
+Known limits, for example a symptom score that runs from 0 to 100, are
+supplied with `Ybounds = c(0, 100)`; they must contain every observed value.
+The fitted nuisance objects returned (`Qfit`, `tmle_fit`, ...) stay on the
+rescaled $[0, 1]$ scale. Continuous outcomes work with missing outcomes,
+SuperLearner and the bootstrap, which uses the same bounds on every resample.
 
 ## Bootstrap inference for the tilted estimators
 

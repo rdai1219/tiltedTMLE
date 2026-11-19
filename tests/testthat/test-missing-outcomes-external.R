@@ -78,7 +78,7 @@ test_that("input checks for external entry point with missing outcomes", {
   Y_arm <- d$Y; Y_arm[d$A == 0] <- NA
   expect_error(estimate_tau_h_external_tilted(Y_arm, d$A, d$D, d$Ws, spec$eta, spec$eta_dot),
                "No observed outcomes")
-  Y_bad <- d$Y; Y_bad[which(!is.na(Y_bad))[1]] <- 2
+  Y_bad <- d$Y; Y_bad[which(!is.na(Y_bad))[1]] <- Inf
   expect_error(estimate_tau_h_external_tilted(Y_bad, d$A, d$D, d$Ws, spec$eta, spec$eta_dot),
                "`Y` must be")
 })

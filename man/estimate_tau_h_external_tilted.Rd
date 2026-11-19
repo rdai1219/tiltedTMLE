@@ -31,6 +31,7 @@ estimate_tau_h_external_tilted(
   piform = NULL,
   pi_SL.library = c("SL.glm"),
   pibounds = c(0.025, 1),
+  Ybounds = NULL,
   Q_args = list(),
   g_args = list(),
   s_args = list(),
@@ -38,8 +39,9 @@ estimate_tau_h_external_tilted(
 )
 }
 \arguments{
-\item{Y, A}{Length-\code{n} internal-only binary (\code{0}/\code{1}) outcome and
-treatment vectors; see \code{\link[=fit_Q]{fit_Q()}} Details.}
+\item{Y, A}{Length-\code{n} internal-only outcome and treatment vectors. \code{Y} is
+binary (\code{0}/\code{1}) or continuous, with \code{NA} for a missing outcome (a
+continuous outcome is rescaled internally; see \code{Ybounds}); \code{A} is \code{0}/\code{1}.}
 
 \item{D}{Length-\code{N} pooled selection indicator.}
 
@@ -74,6 +76,12 @@ If \code{FALSE}, \code{sbounds} is forced to \code{c(0, 1)}.}
 \item{pi_method, piform, pi_SL.library, pibounds}{Passed to \code{\link[=fit_pi]{fit_pi()}}; used only when
 \code{Y} has missing values. \code{pi} is fit on the internal rows (covariates \code{Ws} and \code{A}).}
 
+\item{Ybounds}{Optional bounds \code{c(a, b)} for a continuous outcome. \code{Y} is
+rescaled to \code{(Y - a) / (b - a)} before fitting and the results are mapped
+back. \code{NULL} (default) uses \code{c(0, 1)} for a binary outcome and the observed
+range of \code{Y} otherwise. Known limits (e.g. the range of a rating scale)
+can be supplied instead; they must contain every observed \code{Y}.}
+
 \item{Q_args, g_args, s_args, pi_args}{Named lists of extra arguments passed ONLY to the
 \code{Q}, \code{g}, \code{s} and \code{pi} fits respectively (e.g. \code{Q_args = list(cvControl = list(V = 5))}
 for SL). Replaces the old shared \code{...}.}
@@ -98,6 +106,17 @@ the reference paper's convention that the confounder set for \code{g},
 \code{X^g}, may be a strict subset of the covariate set for \code{s} and \code{Q},
 \code{X^s}).
 }
+\section{Continuous outcomes}{
+
+\code{Y} may be continuous. Following Fang, He, and Dai (2026, Sec. 3.3.2), \code{Y} is
+rescaled to \verb{[0, 1]} using \code{Ybounds}, the TMLE is computed on that scale
+(quasi-binomial outcome model and logistic fluctuation), and the point
+estimates, standard errors and confidence limits are multiplied by \code{b - a},
+so they are reported on the original outcome scale. The returned list also
+contains \code{Ybounds}; the fitted nuisance objects (\code{Qfit}, \code{tmle_fit}, ...)
+stay on the rescaled \verb{[0, 1]} scale. A binary outcome is not rescaled.
+}
+
 \section{Missing outcomes}{
 
 \code{Y} (internal rows only) may contain \code{NA}, missing at random given \code{A} and \code{Ws}.

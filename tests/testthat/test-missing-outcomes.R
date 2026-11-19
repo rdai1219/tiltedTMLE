@@ -56,9 +56,9 @@ test_that("input checks for missing outcomes", {
   set.seed(5)
   d <- sim_missing_dgp(100)
 
-  ## observed Y values must still be 0/1
-  Y_bad <- d$Y; Y_bad[which(!is.na(Y_bad))[1]] <- 2
-  expect_error(estimate_tau_h_fixed(Y_bad, d$A, d$W, h = rep(1, 100)), "must be a 0/1")
+  ## observed Y values must be finite numbers (0/1 or continuous)
+  Y_bad <- d$Y; Y_bad[which(!is.na(Y_bad))[1]] <- Inf
+  expect_error(estimate_tau_h_fixed(Y_bad, d$A, d$W, h = rep(1, 100)), "`Y` must be")
 
   ## an arm with no observed outcome is an error
   Y_arm <- d$Y; Y_arm[d$A == 1] <- NA

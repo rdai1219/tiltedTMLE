@@ -4,7 +4,8 @@
 #' check and for the final standard error at convergence inside
 #' [tmle_tilted_h()].
 #'
-#' @param Y Binary (`0`/`1`) outcome vector; see [fit_Q()] Details.
+#' @param Y Outcome vector on the `[0, 1]` scale (binary `0`/`1`, or a
+#'   continuous outcome rescaled to `[0, 1]`); see [fit_Q()] Details.
 #' @param A Binary (`0`/`1`) treatment vector.
 #' @param eta_g `eta(g1W)`.
 #' @param eta_dot_g `eta_dot(g1W)`.
@@ -67,7 +68,8 @@ eif_tilted_h <- function(Y, A, eta_g, eta_dot_g, Q1W, Q0W, g1W, g0W, tau,
 #' degenerate (all-zero-covariate) fit, so the ATE converges in a single
 #' iteration without a special-cased branch.
 #'
-#' @param Y Binary (`0`/`1`) outcome vector; see [fit_Q()] Details.
+#' @param Y Outcome vector on the `[0, 1]` scale (binary `0`/`1`, or a
+#'   continuous outcome rescaled to `[0, 1]`); see [fit_Q()] Details.
 #' @param A Binary (`0`/`1`) treatment vector.
 #' @param Q1W,Q0W,QAW Fitted outcome regression at `A = 1`, `A = 0`, and
 #'   the observed treatment.
@@ -183,7 +185,8 @@ tmle_tilted_h <- function(Y, A, Q1W, Q0W, QAW, g1W, g0W, eta, eta_dot,
 #' way TMLE's `g` is. TMLE itself iteratively targets both `Q` and `g`
 #' via [tmle_tilted_h()] (Sec 2.3).
 #'
-#' @param Y Binary (`0`/`1`) outcome vector; see [fit_Q()] Details.
+#' @param Y Outcome vector on the `[0, 1]` scale (binary `0`/`1`, or a
+#'   continuous outcome rescaled to `[0, 1]`); see [fit_Q()] Details.
 #' @param A Binary (`0`/`1`) treatment vector.
 #' @param Qfit A fitted-Q object, as returned by [fit_Q()].
 #' @param gfit A fitted-g object, as returned by [fit_g()].
@@ -258,7 +261,8 @@ estimate_tau_h_internal_tilted_given_fits <- function(Y, A, Qfit, gfit, eta, eta
 #' and `g`, then returns MLE/IPW/AIPW benchmarks plus the iterative
 #' TMLE and its EIF-based inference.
 #'
-#' @param Y Binary (`0`/`1`) outcome vector; see [fit_Q()] Details.
+#' @param Y Outcome vector: binary (`0`/`1`) or continuous, with `NA` for a
+#'   missing outcome. A continuous outcome is rescaled internally; see `Ybounds`.
 #' @param A Binary (`0`/`1`) treatment vector.
 #' @param W Covariate data frame.
 #' @param eta,eta_dot Tilting function and its derivative; see [tilt_spec()].
@@ -273,10 +277,24 @@ estimate_tau_h_internal_tilted_given_fits <- function(Y, A, Qfit, gfit, eta, eta
 #' @param max_iter,tol Passed to [tmle_tilted_h()].
 #' @param pi_method,piform,pi_SL.library,pibounds Passed to [fit_pi()]; used only
 #'   when `Y` has missing values.
+#' @param Ybounds Optional bounds `c(a, b)` for a continuous outcome. `Y` is
+#'   rescaled to `(Y - a) / (b - a)` before fitting and the results are mapped
+#'   back. `NULL` (default) uses `c(0, 1)` for a binary outcome and the observed
+#'   range of `Y` otherwise. Known limits (e.g. the range of a rating scale)
+#'   can be supplied instead; they must contain every observed `Y`.
 #' @param Q_args,g_args,pi_args Named lists of extra arguments passed ONLY to [fit_Q()] /
 #'   [fit_g()] / [fit_pi()] (e.g. `Q_args = list(cvControl = list(V = 5))` for SL).
 #'   Replaces the old shared `...`, so settings meant for one fit can no longer leak
 #'   into another.
+#'
+#' @section Continuous outcomes:
+#' `Y` may be continuous. Following Fang, He, and Dai (2026, Sec. 3.3.2), `Y` is
+#' rescaled to `[0, 1]` using `Ybounds`, the TMLE is computed on that scale
+#' (quasi-binomial outcome model and logistic fluctuation), and the point
+#' estimates, standard errors and confidence limits are multiplied by `b - a`,
+#' so they are reported on the original outcome scale. The returned list also
+#' contains `Ybounds`; the fitted nuisance objects (`Qfit`, `tmle_fit`, ...)
+#' stay on the rescaled `[0, 1]` scale. A binary outcome is not rescaled.
 #'
 #' @section Missing outcomes:
 #' `Y` may contain `NA` (outcome missing at random given `A` and `W`). `Q` is fit on
@@ -311,6 +329,7 @@ estimate_tau_h_internal_tilted <- function(Y, A, W, eta, eta_dot,
                                             max_iter = 50, tol = 1e-6,
                                             pi_method = c("glm", "SL"), piform = NULL,
                                             pi_SL.library = c("SL.glm"), pibounds = c(0.025, 1),
+                                            Ybounds = NULL,
                                             Q_args = list(), g_args = list(), pi_args = list()) {
   Q_method <- match.arg(Q_method)
   g_method <- match.arg(g_method)
@@ -320,6 +339,11 @@ estimate_tau_h_internal_tilted <- function(Y, A, W, eta, eta_dot,
   check_bounds(pibounds, "pibounds")
   W <- as.data.frame(W)
 
+  # Continuous outcome: work with Y rescaled to [0, 1]; results are mapped back
+  # at the end (a binary outcome has Ybounds = c(0, 1) and is unchanged).
+  Ybounds <- outcome_bounds(Y, Ybounds)
+  Y <- rescale_outcome(Y, Ybounds)
+
   # Q fit on observed outcomes, predicted for all rows; pi fit only if Y has NAs
   Qfit <- fit_Q_observed(Y, A, W, method = Q_method, Qform = Qform,
                          SL.library = Q_SL.library, Q_args = Q_args)
@@ -328,8 +352,9 @@ estimate_tau_h_internal_tilted <- function(Y, A, W, eta, eta_dot,
   gfit <- do.call(fit_g, c(list(A, W, method = g_method, gform = gform,
                                 SL.library = g_SL.library, gbounds = gbounds), g_args))
 
-  estimate_tau_h_internal_tilted_given_fits(Y, A, Qfit, gfit, eta, eta_dot,
-                                             gbounds = gbounds,
-                                             max_iter = max_iter, tol = tol,
-                                             pifit = pifit)
+  out <- estimate_tau_h_internal_tilted_given_fits(Y, A, Qfit, gfit, eta, eta_dot,
+                                                   gbounds = gbounds,
+                                                   max_iter = max_iter, tol = tol,
+                                                   pifit = pifit)
+  unscale_results(out, Ybounds)
 }

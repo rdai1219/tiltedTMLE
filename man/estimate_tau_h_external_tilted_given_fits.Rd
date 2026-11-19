@@ -23,8 +23,9 @@ estimate_tau_h_external_tilted_given_fits(
 )
 }
 \arguments{
-\item{Y, A}{Length-\code{n} internal-only binary (\code{0}/\code{1}) outcome and
-treatment vectors; see \code{\link[=fit_Q]{fit_Q()}} Details.}
+\item{Y, A}{Length-\code{n} internal-only outcome (on the \verb{[0, 1]} scale: binary,
+or continuous rescaled to \verb{[0, 1]}) and binary treatment vectors; see
+\code{\link[=fit_Q]{fit_Q()}} Details.}
 
 \item{D}{Length-\code{N} pooled selection indicator.}
 

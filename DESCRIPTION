@@ -1,6 +1,6 @@
 Package: tiltedTMLE
 Title: Targeted Maximum Likelihood Estimation for Tilted Average Treatment Effects
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: c(
     person("Yixin", "Fang", email = "yixin.fang@abbvie.com", role = "aut"),
     person("Weili", "He", email = "weili.he@abbvie.com", role = "aut"),
@@ -22,7 +22,10 @@ Description: Implements targeted maximum likelihood estimators (TMLE) for a
     estimands (ATE-I/ATE-E/ATE-O, tilting by a function of the selection
     propensity score s(x) between an internal trial population and an
     external covariate-only population). All three settings share the same
-    efficient-influence-function-based standard error construction.
+    efficient-influence-function-based standard error construction. Binary
+    and bounded continuous outcomes are supported; a continuous outcome is
+    rescaled to the unit interval before targeting and the results are
+    mapped back to the original scale.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

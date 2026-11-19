@@ -21,7 +21,8 @@ tau_h = E[h(X) * (Q(X,1) - Q(X,0))] / E[h(X)]
 
 for a tilting function `h(x)` that is either fixed and known, or itself a
 function of an estimated nuisance that must be targeted alongside the outcome
-regression. There are three entry points, one per setting:
+regression. The outcome `Y` can be binary (0/1) or continuous. There are three
+entry points, one per setting:
 
 - `estimate_tau_h_fixed()` -- `h(x)` is a fixed, precomputed weight (e.g.
   `h(x) = 1` for the plain ATE), estimated with a single TMLE targeting step.
@@ -75,6 +76,22 @@ fitted-nuisance objects for further inspection. See `?estimate_tau_h_fixed`,
 the full set of arguments (SuperLearner nuisance fitting, propensity
 truncation bounds, bootstrap options), or run `vignette("tiltedTMLE")` for a
 longer walkthrough.
+
+## Continuous outcomes
+
+A continuous `Y` is passed in the same way. It is rescaled to `[0, 1]` using `Ybounds`
+(by default the observed range), the TMLE is computed on that scale, and the estimate,
+standard error and confidence interval are reported on the original scale.
+
+```r
+Y_cont <- 2 + 1.5 * A + W$X1 + rnorm(n)
+out_c <- estimate_tau_h_internal_tilted(Y_cont, A, W, spec_att$eta, spec_att$eta_dot)
+out_c$TMLE
+out_c$Ybounds
+
+# Known limits (e.g. a 0-100 rating scale) can be given instead of the observed range
+# estimate_tau_h_internal_tilted(score, A, W, spec_att$eta, spec_att$eta_dot, Ybounds = c(0, 100))
+```
 
 ## Bootstrap inference for the tilted estimators
 

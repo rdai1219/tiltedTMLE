@@ -38,6 +38,9 @@ boot_summary <- function(est, point, conf_level) {
 #' @param n_boot Number of bootstrap resamples.
 #' @param strata Vector (length `n`) defining resampling strata; default `A`.
 #' @param conf_level Confidence level, default 0.95.
+#' @param Ybounds Outcome bounds for a continuous outcome, as in
+#'   [estimate_tau_h_internal_tilted()]. They are resolved once from the full
+#'   data and reused on every resample, so all resamples share the same scale.
 #' @param ... Further arguments passed to [estimate_tau_h_internal_tilted()]
 #'   (e.g. `Q_method`, `gbounds`, `Q_args`).
 #'
@@ -63,9 +66,13 @@ boot_summary <- function(est, point, conf_level) {
 #' b$CI_percentile
 #' @export
 bootstrap_tau_h_internal_tilted <- function(Y, A, W, eta, eta_dot, n_boot = 200,
-                                             strata = A, conf_level = 0.95, ...) {
+                                             strata = A, conf_level = 0.95,
+                                             Ybounds = NULL, ...) {
   W <- as.data.frame(W)
-  point <- estimate_tau_h_internal_tilted(Y, A, W, eta, eta_dot, ...)$TMLE
+  # Same outcome bounds for every resample (a resample's own range could be narrower)
+  check_outcome(Y, allow_missing = TRUE)
+  Ybounds <- outcome_bounds(Y, Ybounds)
+  point <- estimate_tau_h_internal_tilted(Y, A, W, eta, eta_dot, Ybounds = Ybounds, ...)$TMLE
 
   est <- rep(NA_real_, n_boot)
   nonconv <- 0L
@@ -74,7 +81,7 @@ bootstrap_tau_h_internal_tilted <- function(Y, A, W, eta, eta_dot, n_boot = 200,
     # A failed resample (e.g. separation in glm) is recorded as NA, not fatal
     out <- tryCatch(
       suppressWarnings(estimate_tau_h_internal_tilted(Y[id], A[id], W[id, , drop = FALSE],
-                                                      eta, eta_dot, ...)),
+                                                      eta, eta_dot, Ybounds = Ybounds, ...)),
       error = function(e) NULL)
     if (!is.null(out)) {
       est[b] <- out$TMLE
@@ -100,6 +107,8 @@ bootstrap_tau_h_internal_tilted <- function(Y, A, W, eta, eta_dot, n_boot = 200,
 #'   [estimate_tau_h_external_tilted()].
 #' @param n_boot,conf_level See [bootstrap_tau_h_internal_tilted()].
 #' @param strata Length-`n` vector for stratifying the internal resample; default `A`.
+#' @param Ybounds Outcome bounds for a continuous outcome; see
+#'   [bootstrap_tau_h_internal_tilted()].
 #' @param ... Further arguments passed to [estimate_tau_h_external_tilted()].
 #'
 #' @return Same components as [bootstrap_tau_h_internal_tilted()].
@@ -117,11 +126,15 @@ bootstrap_tau_h_internal_tilted <- function(Y, A, W, eta, eta_dot, n_boot = 200,
 #' @export
 bootstrap_tau_h_external_tilted <- function(Y, A, D, Ws, eta, eta_dot, Wg = NULL,
                                              n_boot = 200, strata = A,
-                                             conf_level = 0.95, ...) {
+                                             conf_level = 0.95, Ybounds = NULL, ...) {
   Ws <- as.data.frame(Ws)
   idx1 <- which(D == 1)
   idx0 <- which(D == 0)
-  point <- estimate_tau_h_external_tilted(Y, A, D, Ws, eta, eta_dot, Wg = Wg, ...)$TMLE
+  # Same outcome bounds for every resample (a resample's own range could be narrower)
+  check_outcome(Y, allow_missing = TRUE)
+  Ybounds <- outcome_bounds(Y, Ybounds)
+  point <- estimate_tau_h_external_tilted(Y, A, D, Ws, eta, eta_dot, Wg = Wg,
+                                          Ybounds = Ybounds, ...)$TMLE
 
   est <- rep(NA_real_, n_boot)
   nonconv <- 0L
@@ -133,7 +146,7 @@ bootstrap_tau_h_external_tilted <- function(Y, A, D, Ws, eta, eta_dot, Wg = NULL
     Wg_b <- if (is.null(Wg)) NULL else as.data.frame(Wg)[p, , drop = FALSE]
     out <- tryCatch(
       suppressWarnings(estimate_tau_h_external_tilted(Y[p], A[p], D_b, Ws_b, eta, eta_dot,
-                                                      Wg = Wg_b, ...)),
+                                                      Wg = Wg_b, Ybounds = Ybounds, ...)),
       error = function(e) NULL)
     if (!is.null(out)) {
       est[b] <- out$TMLE

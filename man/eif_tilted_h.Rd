@@ -20,7 +20,8 @@ eif_tilted_h(
 )
 }
 \arguments{
-\item{Y}{Binary (\code{0}/\code{1}) outcome vector; see \code{\link[=fit_Q]{fit_Q()}} Details.}
+\item{Y}{Outcome vector on the \verb{[0, 1]} scale (binary \code{0}/\code{1}, or a
+continuous outcome rescaled to \verb{[0, 1]}); see \code{\link[=fit_Q]{fit_Q()}} Details.}
 
 \item{A}{Binary (\code{0}/\code{1}) treatment vector.}
 

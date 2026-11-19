@@ -10,6 +10,20 @@ check_binary <- function(x, name) {
   invisible(TRUE)
 }
 
+# Y must be numeric (0/1 or continuous) with finite values. NA (a missing outcome)
+# is allowed only when allow_missing = TRUE. The range of Y is checked against
+# `Ybounds` later, in outcome_bounds().
+check_outcome <- function(Y, allow_missing = FALSE) {
+  ok <- (is.numeric(Y) || is.logical(Y)) && all(is.finite(Y[!is.na(Y)])) &&
+    (allow_missing || !anyNA(Y))
+  if (!ok) {
+    stop("`Y` must be a numeric vector (0/1 or continuous) of finite values",
+         if (allow_missing) " (NA marks a missing outcome)." else " with no missing values.",
+         call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
 # Bounds must satisfy 0 <= lo < hi <= 1.
 check_bounds <- function(b, name) {
   if (length(b) != 2 || anyNA(b) || b[1] < 0 || b[2] > 1 || b[1] >= b[2]) {
@@ -20,8 +34,8 @@ check_bounds <- function(b, name) {
 }
 
 # Checks for the fixed-h and internally tilted entry points: (Y, A, W).
-# allow_missing_Y = TRUE lets Y contain NA (missing outcomes, Delta = 0); the
-# observed Y values must still be 0/1, and each arm needs some observed outcomes.
+# allow_missing_Y = TRUE lets Y contain NA (missing outcomes, Delta = 0). Y may be
+# binary or continuous, and each arm needs some observed outcomes.
 check_inputs <- function(Y, A, W, gbounds, allow_missing_Y = FALSE) {
   W <- as.data.frame(W)
   if (length(Y) != length(A) || length(Y) != nrow(W)) {
@@ -29,16 +43,11 @@ check_inputs <- function(Y, A, W, gbounds, allow_missing_Y = FALSE) {
          length(Y), ", ", length(A), ", ", nrow(W), ").", call. = FALSE)
   }
   check_binary(A, "A")
-  if (allow_missing_Y) {
-    obs <- !is.na(Y)
-    check_binary(Y[obs], "Y")  # only the observed values need to be 0/1
-    for (a in 0:1) {
-      if (!any(obs & A == a)) {
-        stop("No observed outcomes in treatment arm A = ", a, ".", call. = FALSE)
-      }
+  check_outcome(Y, allow_missing_Y)
+  for (a in 0:1) {
+    if (!any(!is.na(Y) & A == a)) {
+      stop("No observed outcomes in treatment arm A = ", a, ".", call. = FALSE)
     }
-  } else {
-    check_binary(Y, "Y")
   }
   if (anyNA(W)) stop("`W` must not contain missing values. Fill them in first with add_missing_indicators().", call. = FALSE)
   check_bounds(gbounds, "gbounds")
@@ -57,16 +66,11 @@ check_inputs_external <- function(Y, A, D, Ws, Wg, gbounds, sbounds, allow_missi
     stop("`Y` and `A` must be internal-only: length sum(D == 1) = ", n,
          " (got ", length(Y), " and ", length(A), ").", call. = FALSE)
   }
-  if (allow_missing_Y) {
-    obs <- !is.na(Y)
-    check_binary(Y[obs], "Y")  # only the observed values need to be 0/1
-    for (a in 0:1) {
-      if (!any(obs & A == a)) {
-        stop("No observed outcomes in treatment arm A = ", a, ".", call. = FALSE)
-      }
+  check_outcome(Y, allow_missing_Y)
+  for (a in 0:1) {
+    if (!any(!is.na(Y) & A == a)) {
+      stop("No observed outcomes in treatment arm A = ", a, ".", call. = FALSE)
     }
-  } else {
-    check_binary(Y, "Y")
   }
   if (nrow(Ws) != length(D)) {
     stop("`Ws` must have one row per entry of `D` (got ", nrow(Ws),

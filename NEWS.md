@@ -1,3 +1,25 @@
+# tiltedTMLE 0.2.0
+
+## New features
+
+* Continuous outcomes. `Y` may now be continuous in `estimate_tau_h_fixed()`,
+  `estimate_tau_h_internal_tilted()`, `estimate_tau_h_external_tilted()` and the two
+  full-refit bootstrap functions. Following Fang, He and Dai (2026, Sec. 3.3.2), `Y` is
+  rescaled to `[0, 1]` with the new argument `Ybounds` (default: `c(0, 1)` for a binary
+  outcome, the observed range otherwise), the TMLE is computed on that scale, and the
+  estimates, standard errors and confidence intervals are mapped back to the original
+  scale. The results gain a `Ybounds` element. Works together with missing outcomes,
+  SuperLearner and the bootstrap (which keeps the same bounds on every resample).
+
+## Changes
+
+* `fit_Q()` fits a quasi-binomial glm (or a gaussian SuperLearner) when `Y` is not 0/1,
+  and stops if `Y` is outside `[0, 1]`.
+* The targeting step `fit_eps_h()` uses a quasi-binomial working model. For 0/1 data this
+  gives exactly the same estimate as before.
+* Input checks now accept any finite numeric `Y`; a non-numeric or infinite `Y` is an error.
+* The Shiny app still handles binary outcomes only.
+
 # tiltedTMLE 0.1.0
 
 ## New features

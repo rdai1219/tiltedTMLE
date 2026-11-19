@@ -15,6 +15,7 @@ bootstrap_tau_h_external_tilted(
   n_boot = 200,
   strata = A,
   conf_level = 0.95,
+  Ybounds = NULL,
   ...
 )
 }
@@ -29,6 +30,9 @@ bootstrap_tau_h_external_tilted(
 \item{n_boot, conf_level}{See \code{\link[=bootstrap_tau_h_internal_tilted]{bootstrap_tau_h_internal_tilted()}}.}
 
 \item{strata}{Length-\code{n} vector for stratifying the internal resample; default \code{A}.}
+
+\item{Ybounds}{Outcome bounds for a continuous outcome; see
+\code{\link[=bootstrap_tau_h_internal_tilted]{bootstrap_tau_h_internal_tilted()}}.}
 
 \item{...}{Further arguments passed to \code{\link[=estimate_tau_h_external_tilted]{estimate_tau_h_external_tilted()}}.}
 }

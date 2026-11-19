@@ -11,6 +11,11 @@
 #' function that must itself be estimated and iteratively targeted
 #' alongside the outcome regression.
 #'
+#' The outcome may be binary (`0`/`1`) or continuous. A continuous outcome is
+#' rescaled to `[0, 1]` (see the `Ybounds` argument of the entry points), the
+#' TMLE is computed on that scale, and results are reported on the original
+#' scale.
+#'
 #' @section Fixed/precomputed tilting functions:
 #' [estimate_tau_h_fixed()] / [tmle_h()]: `h(x)` is either a fixed, precomputed
 #' vector (e.g. `h(x) = 1` for the ATE), or a function evaluated once at

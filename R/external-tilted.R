@@ -257,8 +257,9 @@ tmle_external_tilted_h <- function(D, A_int, Y_int, idx1,
 #' predictions EXTRAPOLATED onto all `N` pooled covariates (see
 #' [predict_Qhat()] and [estimate_tau_h_external_tilted()]).
 #'
-#' @param Y,A Length-`n` internal-only binary (`0`/`1`) outcome and
-#'   treatment vectors; see [fit_Q()] Details.
+#' @param Y,A Length-`n` internal-only outcome (on the `[0, 1]` scale: binary,
+#'   or continuous rescaled to `[0, 1]`) and binary treatment vectors; see
+#'   [fit_Q()] Details.
 #' @param D Length-`N` pooled selection indicator.
 #' @param idx1 Integer vector, `which(D == 1)`.
 #' @param Qfit A fitted-Q object (length-`N` `Q1W`/`Q0W`, extrapolated
@@ -364,8 +365,9 @@ estimate_tau_h_external_tilted_given_fits <- function(Y, A, D, idx1,
 #' `X^g`, may be a strict subset of the covariate set for `s` and `Q`,
 #' `X^s`).
 #'
-#' @param Y,A Length-`n` internal-only binary (`0`/`1`) outcome and
-#'   treatment vectors; see [fit_Q()] Details.
+#' @param Y,A Length-`n` internal-only outcome and treatment vectors. `Y` is
+#'   binary (`0`/`1`) or continuous, with `NA` for a missing outcome (a
+#'   continuous outcome is rescaled internally; see `Ybounds`); `A` is `0`/`1`.
 #' @param D Length-`N` pooled selection indicator.
 #' @param Ws Length-`N` pooled covariate data frame.
 #' @param eta,eta_dot Tilting function and its derivative; see [tilt_spec_external()].
@@ -386,9 +388,23 @@ estimate_tau_h_external_tilted_given_fits <- function(Y, A, D, idx1,
 #' @param max_iter,tol Passed to [tmle_external_tilted_h()].
 #' @param pi_method,piform,pi_SL.library,pibounds Passed to [fit_pi()]; used only when
 #'   `Y` has missing values. `pi` is fit on the internal rows (covariates `Ws` and `A`).
+#' @param Ybounds Optional bounds `c(a, b)` for a continuous outcome. `Y` is
+#'   rescaled to `(Y - a) / (b - a)` before fitting and the results are mapped
+#'   back. `NULL` (default) uses `c(0, 1)` for a binary outcome and the observed
+#'   range of `Y` otherwise. Known limits (e.g. the range of a rating scale)
+#'   can be supplied instead; they must contain every observed `Y`.
 #' @param Q_args,g_args,s_args,pi_args Named lists of extra arguments passed ONLY to the
 #'   `Q`, `g`, `s` and `pi` fits respectively (e.g. `Q_args = list(cvControl = list(V = 5))`
 #'   for SL). Replaces the old shared `...`.
+#'
+#' @section Continuous outcomes:
+#' `Y` may be continuous. Following Fang, He, and Dai (2026, Sec. 3.3.2), `Y` is
+#' rescaled to `[0, 1]` using `Ybounds`, the TMLE is computed on that scale
+#' (quasi-binomial outcome model and logistic fluctuation), and the point
+#' estimates, standard errors and confidence limits are multiplied by `b - a`,
+#' so they are reported on the original outcome scale. The returned list also
+#' contains `Ybounds`; the fitted nuisance objects (`Qfit`, `tmle_fit`, ...)
+#' stay on the rescaled `[0, 1]` scale. A binary outcome is not rescaled.
 #'
 #' @section Missing outcomes:
 #' `Y` (internal rows only) may contain `NA`, missing at random given `A` and `Ws`.
@@ -428,6 +444,7 @@ estimate_tau_h_external_tilted <- function(Y, A, D, Ws, eta, eta_dot,
                                             max_iter = 50, tol = 1e-6,
                                             pi_method = c("glm", "SL"), piform = NULL,
                                             pi_SL.library = c("SL.glm"), pibounds = c(0.025, 1),
+                                            Ybounds = NULL,
                                             Q_args = list(), g_args = list(), s_args = list(),
                                             pi_args = list()) {
   Q_method <- match.arg(Q_method)
@@ -438,6 +455,11 @@ estimate_tau_h_external_tilted <- function(Y, A, D, Ws, eta, eta_dot,
   if (!truncate_s) sbounds <- c(0, 1)
   check_inputs_external(Y, A, D, Ws, Wg, gbounds, sbounds, allow_missing_Y = TRUE)
   check_bounds(pibounds, "pibounds")
+
+  # Continuous outcome: work with Y rescaled to [0, 1]; results are mapped back
+  # at the end (a binary outcome has Ybounds = c(0, 1) and is unchanged).
+  Ybounds <- outcome_bounds(Y, Ybounds)
+  Y <- rescale_outcome(Y, Ybounds)
 
   Ws <- as.data.frame(Ws)
   idx1 <- which(D == 1)
@@ -466,10 +488,11 @@ estimate_tau_h_external_tilted <- function(Y, A, D, Ws, eta, eta_dot,
   Wg_all <- Ws[, names(Wg), drop = FALSE]
   g1W_all <- pmin(pmax(predict_ghat(gfit$fit, Wg_all), gbounds[1]), gbounds[2])
 
-  estimate_tau_h_external_tilted_given_fits(Y, A, D, idx1, Qfit, gfit, sfit,
-                                             eta, eta_dot,
-                                             g1W_all = g1W_all,
-                                             sbounds = sbounds,
-                                             max_iter = max_iter, tol = tol,
-                                             pifit = pifit)
+  out <- estimate_tau_h_external_tilted_given_fits(Y, A, D, idx1, Qfit, gfit, sfit,
+                                                   eta, eta_dot,
+                                                   g1W_all = g1W_all,
+                                                   sbounds = sbounds,
+                                                   max_iter = max_iter, tol = tol,
+                                                   pifit = pifit)
+  unscale_results(out, Ybounds)
 }

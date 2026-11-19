@@ -17,7 +17,7 @@ predict_Qhat(Q_fit, A_new, W_new, Qbounds = c(1e-04, 1 - 1e-04))
 \item{Qbounds}{Length-2 bounds applied to the predictions; see \code{\link[=fit_Q]{fit_Q()}}.}
 }
 \value{
-Numeric vector of predicted probabilities.
+Numeric vector of predicted outcome means on the \verb{[0, 1]} scale.
 }
 \description{
 The outcome-regression analog of \code{\link[=predict_ghat]{predict_ghat()}}: dispatches on

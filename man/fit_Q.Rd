@@ -16,7 +16,8 @@ fit_Q(
 )
 }
 \arguments{
-\item{Y}{Binary (\code{0}/\code{1}) outcome vector; see Details.}
+\item{Y}{Outcome vector with values in \verb{[0, 1]}: binary \code{0}/\code{1}, or a
+continuous outcome rescaled to \verb{[0, 1]}; see Details.}
 
 \item{A}{Binary (\code{0}/\code{1}) treatment vector.}
 
@@ -58,15 +59,16 @@ via logistic regression or \code{\link[SuperLearner:SuperLearner]{SuperLearner::
 predicted values at the observed treatment, at \code{A = 1}, and at \code{A = 0}.
 }
 \details{
-\code{Y} must currently be binary (\code{0}/\code{1}): \code{Q} is fit via a binomial-family
-model (\code{family = binomial()} for \code{method = "glm"}; a binomial-family
-\code{\link[SuperLearner:SuperLearner]{SuperLearner::SuperLearner()}} fit for \code{method = "SL"}), and every TMLE
-fluctuation step in this package (see \code{\link[=fit_eps_h]{fit_eps_h()}}) operates on the
-logit scale throughout. Unlike some TMLE implementations (e.g. the CRAN
-\code{tmle} package's \code{maptoYstar} option), this package does not rescale a
-continuous \code{Y} onto \verb{(0, 1)} before fitting -- passing a continuous or
-out-of-range \code{Y} will not raise an informative error, but will silently
-produce invalid fits and predictions.
+\code{Y} must lie in \verb{[0, 1]}, because every TMLE fluctuation step in this
+package (see \code{\link[=fit_eps_h]{fit_eps_h()}}) works on the logit scale. A binary \code{0}/\code{1}
+outcome is fit with a binomial model (\code{binomial()} glm, or a binomial
+\code{\link[SuperLearner:SuperLearner]{SuperLearner::SuperLearner()}}). Any other \code{Y} in \verb{[0, 1]} (a continuous
+outcome already rescaled to \verb{[0, 1]}) is fit with a quasi-binomial glm
+(same logit mean model) or a gaussian SuperLearner, whose predictions are
+then clamped to \code{Qbounds}. The raw-data entry points
+(\code{\link[=estimate_tau_h_fixed]{estimate_tau_h_fixed()}}, \code{\link[=estimate_tau_h_internal_tilted]{estimate_tau_h_internal_tilted()}},
+\code{\link[=estimate_tau_h_external_tilted]{estimate_tau_h_external_tilted()}}) do this rescaling automatically; see
+their \code{Ybounds} argument.
 }
 \examples{
 set.seed(1)

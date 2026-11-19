@@ -17,6 +17,12 @@ instead treats \code{h(x)} as a known function of an unknown nuisance
 function that must itself be estimated and iteratively targeted
 alongside the outcome regression.
 }
+\details{
+The outcome may be binary (\code{0}/\code{1}) or continuous. A continuous outcome is
+rescaled to \verb{[0, 1]} (see the \code{Ybounds} argument of the entry points), the
+TMLE is computed on that scale, and results are reported on the original
+scale.
+}
 \section{Fixed/precomputed tilting functions}{
 
 \code{\link[=estimate_tau_h_fixed]{estimate_tau_h_fixed()}} / \code{\link[=tmle_h]{tmle_h()}}: \code{h(x)} is either a fixed, precomputed

@@ -1,13 +1,14 @@
-# Run SuperLearner for a binary target. SuperLearner looks up its learners (SL.glm, ...) and the
+# Run SuperLearner (binomial family by default; gaussian for a rescaled continuous
+# outcome, see fit_Q()). SuperLearner looks up its learners (SL.glm, ...) and the
 # default screening function `All` by NAME, starting from `env`. By default that is the caller, which
 # inside this package cannot see them unless the user has attached SuperLearner with library().
 # Pointing `env` at the SuperLearner namespace finds every built-in learner, and (because a namespace
 # chain ends at the global environment) user-written learners defined in the global environment too.
-run_superlearner <- function(Y, X, SL.library, ...) {
+run_superlearner <- function(Y, X, SL.library, family = stats::binomial(), ...) {
   dots <- list(...)
   if (is.null(dots$env)) dots$env <- asNamespace("SuperLearner")
   do.call(SuperLearner::SuperLearner,
-          c(list(Y = Y, X = X, family = stats::binomial(), SL.library = SL.library), dots))
+          c(list(Y = Y, X = X, family = family, SL.library = SL.library), dots))
 }
 
 # Internal helper: clamp x into [b[1], b[2]]. c(0, 1) is a no-op.
@@ -19,17 +20,19 @@ clamp_bounds <- function(x, b) pmin(pmax(x, b[1]), b[2])
 #' via logistic regression or [SuperLearner::SuperLearner()], and returns
 #' predicted values at the observed treatment, at `A = 1`, and at `A = 0`.
 #'
-#' `Y` must currently be binary (`0`/`1`): `Q` is fit via a binomial-family
-#' model (`family = binomial()` for `method = "glm"`; a binomial-family
-#' [SuperLearner::SuperLearner()] fit for `method = "SL"`), and every TMLE
-#' fluctuation step in this package (see [fit_eps_h()]) operates on the
-#' logit scale throughout. Unlike some TMLE implementations (e.g. the CRAN
-#' `tmle` package's `maptoYstar` option), this package does not rescale a
-#' continuous `Y` onto `(0, 1)` before fitting -- passing a continuous or
-#' out-of-range `Y` will not raise an informative error, but will silently
-#' produce invalid fits and predictions.
+#' `Y` must lie in `[0, 1]`, because every TMLE fluctuation step in this
+#' package (see [fit_eps_h()]) works on the logit scale. A binary `0`/`1`
+#' outcome is fit with a binomial model (`binomial()` glm, or a binomial
+#' [SuperLearner::SuperLearner()]). Any other `Y` in `[0, 1]` (a continuous
+#' outcome already rescaled to `[0, 1]`) is fit with a quasi-binomial glm
+#' (same logit mean model) or a gaussian SuperLearner, whose predictions are
+#' then clamped to `Qbounds`. The raw-data entry points
+#' ([estimate_tau_h_fixed()], [estimate_tau_h_internal_tilted()],
+#' [estimate_tau_h_external_tilted()]) do this rescaling automatically; see
+#' their `Ybounds` argument.
 #'
-#' @param Y Binary (`0`/`1`) outcome vector; see Details.
+#' @param Y Outcome vector with values in `[0, 1]`: binary `0`/`1`, or a
+#'   continuous outcome rescaled to `[0, 1]`; see Details.
 #' @param A Binary (`0`/`1`) treatment vector.
 #' @param W Covariate data frame (or matrix, coerced via [as.data.frame()]).
 #' @param method Nuisance-fitting method. `"glm"` (default) fits a single
@@ -74,10 +77,19 @@ fit_Q <- function(Y, A, W, method = c("glm", "SL"),
                    Qbounds = c(1e-4, 1 - 1e-4), ...) {
   method <- match.arg(method)
   W <- as.data.frame(W)
+  if (any(Y < 0 | Y > 1, na.rm = TRUE)) {
+    stop("fit_Q() needs `Y` in [0, 1]. Rescale a continuous outcome first, or use an ",
+         "estimate_tau_h_*() function, which does this automatically.", call. = FALSE)
+  }
+  # Binary Y: ordinary logistic model. Continuous Y (already rescaled to [0, 1]):
+  # quasi-binomial glm (same logit mean model, no "non-integer successes" warnings)
+  # or gaussian SuperLearner (predictions clamped into [0, 1] below).
+  binary <- is_binary_outcome(Y)
 
   if (method == "glm") {
     if (is.null(Qform)) Qform <- stats::as.formula(paste("Y ~ A*(", paste(names(W), collapse = "+"), ")"))
-    fit <- stats::glm(Qform, data = data.frame(Y = Y, A = A, W), family = stats::binomial(), ...)
+    fam <- if (binary) stats::binomial() else stats::quasibinomial()
+    fit <- stats::glm(Qform, data = data.frame(Y = Y, A = A, W), family = fam, ...)
     QAW <- stats::predict(fit, newdata = data.frame(A = A, W), type = "response")
     Q1W <- stats::predict(fit, newdata = data.frame(A = 1, W), type = "response")
     Q0W <- stats::predict(fit, newdata = data.frame(A = 0, W), type = "response")
@@ -87,13 +99,14 @@ fit_Q <- function(Y, A, W, method = c("glm", "SL"),
            "Install it with install.packages(\"SuperLearner\").", call. = FALSE)
     }
     WA <- data.frame(A = A, W)
-    fit <- run_superlearner(Y = Y, X = WA, SL.library = SL.library, ...)
+    fam <- if (binary) stats::binomial() else stats::gaussian()
+    fit <- run_superlearner(Y = Y, X = WA, SL.library = SL.library, family = fam, ...)
     QAW <- as.numeric(stats::predict(fit, newdata = WA)$pred)
     Q1W <- as.numeric(stats::predict(fit, newdata = data.frame(A = 1, W))$pred)
     Q0W <- as.numeric(stats::predict(fit, newdata = data.frame(A = 0, W))$pred)
   }
 
-  # Fix 1: keep Q strictly inside (0, 1)
+  # Keep Q strictly inside (0, 1) so qlogis(Q) is finite
   QAW <- clamp_bounds(QAW, Qbounds)
   Q1W <- clamp_bounds(Q1W, Qbounds)
   Q0W <- clamp_bounds(Q0W, Qbounds)
@@ -214,7 +227,7 @@ predict_ghat <- function(g_fit, newdata) {
 #' @param W_new Covariate data frame to predict at.
 #' @param Qbounds Length-2 bounds applied to the predictions; see [fit_Q()].
 #'
-#' @return Numeric vector of predicted probabilities.
+#' @return Numeric vector of predicted outcome means on the `[0, 1]` scale.
 #' @seealso [fit_Q()], which returns the `fit` object this function predicts from.
 #' @examples
 #' set.seed(1)

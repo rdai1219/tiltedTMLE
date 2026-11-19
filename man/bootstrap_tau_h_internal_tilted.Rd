@@ -13,6 +13,7 @@ bootstrap_tau_h_internal_tilted(
   n_boot = 200,
   strata = A,
   conf_level = 0.95,
+  Ybounds = NULL,
   ...
 )
 }
@@ -24,6 +25,10 @@ bootstrap_tau_h_internal_tilted(
 \item{strata}{Vector (length \code{n}) defining resampling strata; default \code{A}.}
 
 \item{conf_level}{Confidence level, default 0.95.}
+
+\item{Ybounds}{Outcome bounds for a continuous outcome, as in
+\code{\link[=estimate_tau_h_internal_tilted]{estimate_tau_h_internal_tilted()}}. They are resolved once from the full
+data and reused on every resample, so all resamples share the same scale.}
 
 \item{...}{Further arguments passed to \code{\link[=estimate_tau_h_internal_tilted]{estimate_tau_h_internal_tilted()}}
 (e.g. \code{Q_method}, \code{gbounds}, \code{Q_args}).}

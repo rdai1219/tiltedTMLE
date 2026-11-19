@@ -24,13 +24,15 @@ estimate_tau_h_internal_tilted(
   piform = NULL,
   pi_SL.library = c("SL.glm"),
   pibounds = c(0.025, 1),
+  Ybounds = NULL,
   Q_args = list(),
   g_args = list(),
   pi_args = list()
 )
 }
 \arguments{
-\item{Y}{Binary (\code{0}/\code{1}) outcome vector; see \code{\link[=fit_Q]{fit_Q()}} Details.}
+\item{Y}{Outcome vector: binary (\code{0}/\code{1}) or continuous, with \code{NA} for a
+missing outcome. A continuous outcome is rescaled internally; see \code{Ybounds}.}
 
 \item{A}{Binary (\code{0}/\code{1}) treatment vector.}
 
@@ -55,6 +57,12 @@ estimate_tau_h_internal_tilted(
 \item{pi_method, piform, pi_SL.library, pibounds}{Passed to \code{\link[=fit_pi]{fit_pi()}}; used only
 when \code{Y} has missing values.}
 
+\item{Ybounds}{Optional bounds \code{c(a, b)} for a continuous outcome. \code{Y} is
+rescaled to \code{(Y - a) / (b - a)} before fitting and the results are mapped
+back. \code{NULL} (default) uses \code{c(0, 1)} for a binary outcome and the observed
+range of \code{Y} otherwise. Known limits (e.g. the range of a rating scale)
+can be supplied instead; they must contain every observed \code{Y}.}
+
 \item{Q_args, g_args, pi_args}{Named lists of extra arguments passed ONLY to \code{\link[=fit_Q]{fit_Q()}} /
 \code{\link[=fit_g]{fit_g()}} / \code{\link[=fit_pi]{fit_pi()}} (e.g. \code{Q_args = list(cvControl = list(V = 5))} for SL).
 Replaces the old shared \code{...}, so settings meant for one fit can no longer leak
@@ -69,6 +77,17 @@ function pair \verb{(eta, eta_dot)} (e.g. from \code{\link[=tilt_spec]{tilt_spec
 and \code{g}, then returns MLE/IPW/AIPW benchmarks plus the iterative
 TMLE and its EIF-based inference.
 }
+\section{Continuous outcomes}{
+
+\code{Y} may be continuous. Following Fang, He, and Dai (2026, Sec. 3.3.2), \code{Y} is
+rescaled to \verb{[0, 1]} using \code{Ybounds}, the TMLE is computed on that scale
+(quasi-binomial outcome model and logistic fluctuation), and the point
+estimates, standard errors and confidence limits are multiplied by \code{b - a},
+so they are reported on the original outcome scale. The returned list also
+contains \code{Ybounds}; the fitted nuisance objects (\code{Qfit}, \code{tmle_fit}, ...)
+stay on the rescaled \verb{[0, 1]} scale. A binary outcome is not rescaled.
+}
+
 \section{Missing outcomes}{
 
 \code{Y} may contain \code{NA} (outcome missing at random given \code{A} and \code{W}). \code{Q} is fit on

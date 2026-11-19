@@ -23,7 +23,8 @@ mle_h <- function(h, Q1W, Q0W) {
 
 #' Inverse-probability-weighted estimator of a tilted ATE
 #'
-#' @param Y Binary (`0`/`1`) outcome vector; see [fit_Q()] Details.
+#' @param Y Outcome vector on the `[0, 1]` scale (binary `0`/`1`, or a
+#'   continuous outcome rescaled to `[0, 1]`); see [fit_Q()] Details.
 #' @param A Binary (`0`/`1`) treatment vector.
 #' @param h Numeric tilting-function weight vector.
 #' @param g1W,g0W Fitted treatment propensity at `A = 1` (and, by default,
@@ -100,9 +101,12 @@ aipw_h <- function(Y, A, h, Q1W, Q0W, g1W, g0W = 1 - g1W,
 #' tilted TMLE cores) can all call it on different subsets of rows
 #' without duplicating logic.
 #'
-#' @param Y Binary (`0`/`1`) response vector (on the subset of rows the
-#'   fluctuation is fit on) -- the outcome `Y` when targeting `Q`, or a
-#'   selection/treatment indicator (`D`/`A`) when targeting `g`/`s`.
+#' @param Y Response vector with values in `[0, 1]` -- the outcome `Y`
+#'   (binary, or continuous rescaled to `[0, 1]`) when targeting `Q`, or a
+#'   selection/treatment indicator (`D`/`A`) when targeting `g`/`s`. The
+#'   fluctuation is fit by quasi-binomial regression, which gives the usual
+#'   logistic-regression estimate for binary `Y` and remains valid for
+#'   continuous `Y` in `[0, 1]`.
 #' @param H The clever covariate, same length as `Y`.
 #' @param logitQAW Offset: the current fit on the logit scale, same length as `Y`.
 #' @param indices Row indices of `Y`/`H`/`logitQAW` to fit on (defaults to all).
@@ -126,7 +130,9 @@ aipw_h <- function(Y, A, h, Q1W, Q0W, g1W, g0W = 1 - g1W,
 #' @export
 fit_eps_h <- function(Y, H, logitQAW, indices = seq_along(Y)) {
   dat <- data.frame(Y = Y[indices], H = H[indices], off = logitQAW[indices])
-  fit <- suppressWarnings(stats::glm(Y ~ -1 + H + offset(off), data = dat, family = stats::binomial()))
+  # quasibinomial: same estimate as binomial for 0/1 Y, and also valid for Y in [0, 1]
+  fit <- suppressWarnings(stats::glm(Y ~ -1 + H + offset(off), data = dat,
+                                     family = stats::quasibinomial()))
   eps <- unname(stats::coef(fit)["H"])
   if (!is.finite(eps)) eps <- 0
   eps
@@ -146,7 +152,8 @@ fit_eps_h <- function(Y, H, logitQAW, indices = seq_along(Y)) {
 #' [fit_eps_h()]). `H`/`logitQAW` are returned so [tmle_bootstrap_h()] can
 #' reuse them exactly on each bootstrap resample, instead of recomputing.
 #'
-#' @param Y Binary (`0`/`1`) outcome vector; see [fit_Q()] Details.
+#' @param Y Outcome vector on the `[0, 1]` scale (binary `0`/`1`, or a
+#'   continuous outcome rescaled to `[0, 1]`); see [fit_Q()] Details.
 #' @param A Binary (`0`/`1`) treatment vector.
 #' @param h Numeric tilting-function weight vector.
 #' @param QAW Fitted outcome regression at the observed treatment.
@@ -218,7 +225,8 @@ tmle_h <- function(Y, A, h, QAW, Q1W, Q0W, g1W, g0W = 1 - g1W,
 #' Initial nuisance fits (`Q1W`, `Q0W`, `g1W`, `h`) are held fixed; only
 #' the target-step fluctuation `eps` is refit on each resample.
 #'
-#' @param Y Binary (`0`/`1`) outcome vector; see [fit_Q()] Details.
+#' @param Y Outcome vector on the `[0, 1]` scale (binary `0`/`1`, or a
+#'   continuous outcome rescaled to `[0, 1]`); see [fit_Q()] Details.
 #' @param A Binary (`0`/`1`) treatment vector.
 #' @param h Numeric tilting-function weight vector.
 #' @param Q1W,Q0W Fitted outcome regression at `A = 1` and `A = 0`.
